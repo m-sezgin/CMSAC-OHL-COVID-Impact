@@ -1,1 +1,3 @@
-# CMSAC-NHL-COVID-Impact
+# CMSAC NHL COVID Impact
+
+"Does not playing hockey make you a worse hockey player?"

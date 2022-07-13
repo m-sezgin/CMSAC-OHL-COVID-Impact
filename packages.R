@@ -32,7 +32,6 @@ try <- nhl_players_allseasons(playerIds = c(91435, 90194))
 
 # fastRhockey -------------------------------------------------------------
 
-install.packages("fastRhockey")
 library(fastRhockey)
 try3 <- fastRhockey::load_nhl_player_box(2021)
 jack <- try3 %>% filter(player_full_name == "Jack Hughes")

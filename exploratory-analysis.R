@@ -88,25 +88,42 @@ null_dist %>%
 # MLR with ppg response ---------------------------------------------------
 
 # We need to check that each player played in the OHL in 2019-2020 and 2021-2022
-
 ohl_filtered <- ohl %>%
   filter(season %in% c("2019-2020", "2021-2022"), league == "OHL") %>%
   group_by(player_id, season) %>%
   mutate(played_both_szn = ifelse(n() > 1, TRUE, FALSE)) %>%
   filter(played_both_szn == TRUE) %>%
   left_join(select(ohl_treatment, player_id, treatment), by = "player_id") %>%
-  mutate(ppg = pts/gp)
+  mutate(ppg = pts/gp) %>%
+  filter(ppg != 0) %>%
+  mutate(log_ppg = log(ppg))
 
-# fit model
+## Fit models
 
-mlr_lm <- lm(ppg ~ treatment + season, data = ohl_filtered)
-summary(mlr_lm)
-plot(mlr_lm)
+# vanilla MLR
+mlr <- lm(ppg ~ treatment + season + position, data = ohl_filtered)
+summary(mlr)
+plot(mlr)
 
-glm_poisson <- glm(ppg ~ treatment + season,
+# ppg on log scale
+log_mlr <- lm(log_ppg ~ treatment + season + position, data = ohl_filtered)
+summary(log_mlr)
+plot(log_mlr)
+
+# GLM??
+glm <- glm(ppg ~ treatment + season,
                   data = ohl_filtered,
-                  family = "poisson")
+                  family = "")
 
+# GAM
+set.seed(2004)
+ohl_gam <- ohl_filtered %>%
+  mutate(is_train = sample(rep(0:1, length.out = nrow(ohl_filtered))))
+
+library(mgcv)
+init_logit_gam <- gam(ppg ~ s(treatment) + s(season),
+                      data = filter(ohl_gam, is_train == 1), 
+                      family = gaussian, method = "REML")
 
 # Filtering for leagues that are present in all seasons 2019-2022 ---------
 

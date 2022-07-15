@@ -43,7 +43,6 @@ try5 <- nhl_drafts(2015:2017)
 
 # fastRhockey -------------------------------------------------------------
 
-install.packages("fastRhockey")
 library(fastRhockey)
 try3 <- fastRhockey::load_nhl_player_box(2021)
 jack <- try3 %>% filter(player_full_name == "Jack Hughes")

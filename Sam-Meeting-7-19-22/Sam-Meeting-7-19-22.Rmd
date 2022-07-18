@@ -1,0 +1,155 @@
+---
+title: "Does Not Playing Hockey Make You Worse at Hockey? Project Progress 7-19-22"
+author: "Jackie Jovanovic, Michele Sezgin"
+date: "`r Sys.Date()`"
+output: openintro::lab_report
+---
+
+```{r load-packages, message=FALSE}
+library(tidyverse)
+```
+
+### Purpose
+
+During 2020-2021, many hockey leagues (including NHL feeder leagues) had shortened seasons or no season due to the restrictions on play caused by the COVID-19 pandemic. Some players experiencing restrictions on play in played in other leagues or tournaments during the 2021-2022 season. Others did not play any league/tournament games during the 2020-2021 season. This poses the question of whether not playing games during the 2020-2021 COVID season negatively impacted player development (or caused players to get worse). To answer this question, we will examine data from the Ontario Hockey League, which did not play any games during the 2020-2021 season. Some players from this league chose to play in other leagues or tournaments while others did not.
+
+### Load data
+
+```{r data}
+ohl <- read_csv("../sams_ohl_data_request.csv")
+ohl_covid <- ohl %>%
+  filter(season %in% c("2019-2020","2020-2021", "2021-2022"))
+```
+
+### Prep data
+
+```{r}
+## Add treatment var:
+
+# Filtering only for players who played more than 10 games (should we combine number of games played across leagues?)
+ohl_20_21 <- ohl %>%
+  filter(season == "2020-2021", gp > 10)
+
+# Split players up into treatment vs non-treatment
+ohl_treatment <- ohl %>%
+  filter(season %in% c("2019-2020", "2021-2022"), league == "OHL") %>%
+  group_by(player_id, season) %>%
+  mutate(ppg = sum(pts)/sum(gp),
+         treatment = ifelse(player_id %in% ohl_20_21$player_id, "Played", "Didn't play")
+  ) %>%
+  ungroup()
+
+plyr_quality <- ohl %>%
+  filter(season == "2019-2020", league == "OHL") %>%
+  group_by(player_id) %>%
+  mutate(plyr_quality = pts/gp) %>%
+  ungroup() %>%
+  select(player_id, team_name, plyr_quality)
+
+# View(plyr_quality %>%
+#   filter(duplicated(plyr_quality$player_id) == TRUE))
+# ## need to deal with duplicate players/rows
+# View(ohl_filtered %>%
+#   filter(duplicated(ohl_filtered$player_id) == TRUE))
+
+
+# We need to check that each player played in the OHL in 2019-2020 and 2021-2022
+ohl_filtered <- ohl %>%
+  filter(season %in% c("2019-2020", "2021-2022"), league == "OHL") %>%
+  group_by(player_id) %>%
+  mutate(played_2019 = season == "2019-2020",
+         played_2021 = season == "2021-2022",
+         played_both_szn = sum(played_2019) & sum(played_2021)) %>%
+  ungroup() %>%
+  filter(played_both_szn == TRUE) %>%
+  left_join(select(ohl_treatment, player_id, season, team_name, treatment), by = c("player_id", "team_name", "season")) %>%
+  mutate(ppg = pts/gp,
+         age = trunc((dob %--% as.Date("2022-01-01")) / years(1))
+  ) %>%
+  filter(age %in% 16:22) %>%
+  left_join(plyr_quality, by = c("player_id", "team_name")) %>%
+  group_by(player_id, season) %>%
+  mutate(ppg_total = sum(pts)/sum(gp)) %>%
+  arrange(player_id, season, -plyr_quality) %>%
+  filter(duplicated(player_id) == FALSE) #%>%
+  # filter(ppg != 0) %>%
+  # mutate(log_ppg = log(ppg))
+
+## Trying to combine players who played for two teams into one
+
+combined <- ohl_filtered %>%
+  
+
+ohl_treatment_21_22 <- ohl_filtered %>%
+  filter(season == "2021-2022")
+```
+
+### EDA
+
+#### EDA with confounders: position, age, player quality
+
+```{r}
+library(GGally)
+
+ohl_filtered %>%
+  select(season, position, age, ppg) %>%
+  ggpairs()
+```
+
+
+#### **Position**
+
+```{r}
+# density curve of ppg faceted by position
+ggplot(ohl_treatment_21_22) +
+  geom_density(aes(x = ppg)) +
+  facet_grid(rows = vars(position))
+```
+
+```{r}
+# density curve of ppg faceted by position
+ggplot(ohl_filtered) +
+  geom_density(aes(x = ppg, color = season)) +
+  facet_grid(rows = vars(position))
+```
+
+
+```{r}
+ggplot(ohl_treatment_21_22) +
+  geom_density(aes(x = ppg, color = treatment)) +
+  facet_grid(rows = vars(position))
+```
+
+```{r}
+ggplot(ohl_treatment_21_22, aes(x = as.factor(position), y = ppg)) +
+  geom_point(alpha = .2) +
+  stat_summary(geom = "line", fun = mean, group = 1) 
+```
+
+```{r}
+# violates constant variance... much more variance among forwards than Ds
+lm_pos <- lm(ppg ~ position, data = filter(ohl_filtered, gp > 20))
+summary(lm_pos)
+plot(lm_pos)
+```
+#### **Player quality**
+
+
+
+### Modeling
+
+```{r}
+# vanilla MLR
+mlr <- lm(ppg ~ treatment + season + position, data = ohl_filtered)
+summary(mlr)
+plot(mlr)
+
+# ppg on log scale
+log_mlr <- lm(log(ppg) ~ treatment + season + position, data = filter(ohl_filtered, ppg != 0))
+summary(log_mlr)
+plot(log_mlr)
+```
+
+
+...
+

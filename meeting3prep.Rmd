@@ -84,19 +84,21 @@ recent %>%
 ## Confounding Variables
 ### Player Quality
 
-#### Drafted
-If drafted or not:
-```{r}
+### Drafted
+#### If drafted or not:
+```{r, warning = FALSE}
+summary(lm(ppg ~ got_drafted, data = recent2))
 recent2 %>% 
   ggplot(aes(x = ppg)) +
   geom_histogram(aes(fill = got_drafted), alpha = 0.5) +
   theme_bw() +
   labs(x = "points per game", fill = "drafted") +
   facet_wrap(~season)
-summary(lm(ppg ~ got_drafted, data = recent2))
 ```
 
-Draft pick number / round: 
+Very low R-squared value, significant p-value. 
+
+#### Draft pick number / round: 
 ```{r}
 summary(lm(ppg ~ overall_pick_num, data = drafted))
 drafted %>% 
@@ -113,6 +115,10 @@ drafted %>%
   theme_bw()
 mosaicplot(table(drafted$round, drafted$season))
 ```
+
+Coefficient for 'overall_pick_number' is small. 
+The jitter plot shows that some players drafted in the seventh round played about as many games as those drafted in earlier rounds.
+
 
 #### Position
 ```{r}
@@ -136,6 +142,8 @@ drafted %>%
   theme_bw()
 ```
 
+Defensemen have less points and lower points per game than forwards. Players from different draft rounds are intermixed. 
+
 #### ppg in 2019-2020
 ```{r}
 # players with stats from both 2019-2020 and 2021-2022
@@ -156,4 +164,12 @@ summed_both %>%
   geom_rug(alpha = 0.5) +
   theme_bw()
 ```
+
+Points per game was slightly higher in the 2019-2020 season. 
+
+## Questions:
+
+1. How do we tell if someone is a first liner?
+1. How do we know if it is a tournament or league (since they are the same variable)?
+1. Should we be looking at pts or g?
 

@@ -1,0 +1,159 @@
+---
+title: "Meeting 3 Prep"
+output: 
+  html_document:
+    code_folding: hide
+date: '2022-07-17'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE}
+# load packages
+library(tidyverse)
+library(RColorBrewer)
+library(ggbeeswarm)
+# load data
+library(readr)
+sams_ohl_data_request <- read_csv("C:/Users/jacki/Desktop/REU/hockey/sams_ohl_data_request.csv")
+View(sams_ohl_data_request)
+# filter years
+recent <- sams_ohl_data_request %>% 
+  filter(season %in% c("2019-2020", "2020-2021", "2021-2022"))
+# add points per game columns
+recent <- recent %>% 
+  mutate(ppg = pts/gp)
+# more data frames
+all3 <- recent %>% 
+  filter(season %in% c("2019-2020", "2020-2021", "2021-2022")) %>%
+  group_by(league, season) %>%
+  summarize(count = n()) %>%
+  pivot_wider(names_from = season, values_from = count) %>%
+  filter(!is.na(`2019-2020`) & !is.na(`2020-2021`) & !is.na(`2021-2022`))
+all_seasons <- recent %>% 
+  filter(league %in% c("Belarus Cup", "International-Jr", "MHL",
+                       "NOJHL", "Slovakia U20", "Slovakia2",
+                       "USHL"))
+drafted <- recent %>% 
+  filter(!is.na(draft_year))
+recent2 <- recent %>% 
+  mutate(got_drafted = case_when(!is.na(draft_year) ~ 'Yes',
+                                 TRUE ~ 'No'))
+```
+
+
+### Alternatives to boxplots
+
+1. Jitter plot / strip plot
+```{r, warning = FALSE}
+recent %>% 
+  ggplot(aes(x = factor(season), y = ppg)) +
+  geom_jitter(alpha = 0.4, aes(color = position),
+              position=position_jitter(0.2)) +
+  theme_bw()
+```
+
+2. Violin
+```{r, warning = FALSE}
+recent %>% 
+  ggplot(aes(x = ppg, y = factor(season))) +
+  geom_violin(fill = "cornflowerblue") +
+  theme_bw()
+```
+
+3. Beeswarm
+```{r, warning = FALSE}
+recent %>% 
+  ggplot(aes(y = ppg)) +
+  geom_beeswarm(aes(x = ""), cex = 3, alpha = 0.5) +
+  theme_bw() +
+  coord_flip()
+```
+
+4. Density plot with rugs
+```{r, warning = FALSE}
+recent %>% 
+  ggplot(aes(x = ppg)) +
+  geom_density(aes(fill = season), alpha = 0.3) +
+  geom_rug(alpha = 0.5) +
+  theme_bw() 
+```
+
+## Confounding Variables
+### Player Quality
+
+#### Drafted
+If drafted or not:
+```{r}
+recent2 %>% 
+  ggplot(aes(x = ppg)) +
+  geom_histogram(aes(fill = got_drafted), alpha = 0.5) +
+  theme_bw() +
+  labs(x = "points per game", fill = "drafted") +
+  facet_wrap(~season)
+summary(lm(ppg ~ got_drafted, data = recent2))
+```
+
+Draft pick number / round: 
+```{r}
+summary(lm(ppg ~ overall_pick_num, data = drafted))
+drafted %>% 
+  ggplot(aes(x = gp, y = overall_pick_num)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth() +
+  labs(x = "games played", y = "draft pick number") +
+  theme_bw()
+drafted %>% 
+  ggplot(aes(x = factor(round), y = gp)) +
+  geom_jitter(alpha = 0.4, aes(color = position),
+              position=position_jitter(0.2)) +
+  labs(x = "round", y = "games played") +
+  theme_bw()
+mosaicplot(table(drafted$round, drafted$season))
+```
+
+#### Position
+```{r}
+drafted %>% 
+  ggplot(aes(x = factor(position), y = gp)) +
+  geom_jitter(alpha = 0.4, aes(color = draft_year),
+              position=position_jitter(0.2)) +
+  labs(x = "position", y = "games played", color = "draft year") +
+  theme_bw()
+drafted %>% 
+  ggplot(aes(x = factor(position), y = pts)) +
+  geom_jitter(alpha = 0.4, aes(color = round),
+              position=position_jitter(0.2)) +
+  labs(x = "position", y = "points", color = "round") +
+  theme_bw()
+drafted %>% 
+  ggplot(aes(x = factor(position), y = ppg)) +
+  geom_jitter(alpha = 0.4, aes(color = round),
+              position=position_jitter(0.2)) +
+  labs(x = "position", y = "points per game", color = "round") +
+  theme_bw()
+```
+
+#### ppg in 2019-2020
+```{r}
+# players with stats from both 2019-2020 and 2021-2022
+summed_both <- recent %>% 
+  filter(season %in% c("2019-2020", "2021-2022"))
+summed_both <- summed_both %>% 
+  group_by(name, season) %>% 
+  summarize_at(vars(gp:pm, ppg), "sum")
+summed_both <- summed_both %>% 
+  group_by(name) %>% 
+  mutate(count_seasons = n()) %>% 
+  filter(count_seasons == 2)
+
+# density plot
+summed_both %>%
+  ggplot(aes(x = ppg)) +
+  geom_density(aes(fill = season), alpha = 0.3) +
+  geom_rug(alpha = 0.5) +
+  theme_bw()
+```
+

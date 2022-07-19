@@ -17,7 +17,8 @@ library(RColorBrewer)
 library(ggbeeswarm)
 # load data
 library(readr)
-sams_ohl_data_request <- read_csv("C:/Users/jacki/Desktop/REU/hockey/sams_ohl_data_request.csv")
+sams_ohl_data_request <- #read_csv("C:/Users/jacki/Desktop/REU/hockey/sams_ohl_data_request.csv")
+read_csv("sams_ohl_data_request.csv")
 View(sams_ohl_data_request)
 # filter years
 recent <- sams_ohl_data_request %>% 

@@ -1,8 +1,10 @@
 ---
 title: "Does Not Playing Hockey Make You Worse at Hockey? Project Progress 7-19-22"
 author: "Jackie Jovanovic, Michele Sezgin"
-date: "`r Sys.Date()`"
-output: openintro::lab_report
+output: 
+  html_document:
+    code_folding: hide
+date: 'July 17th, 2022'
 ---
 
 ```{r, include = FALSE}
@@ -13,6 +15,7 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 ```{r load-packages, message=FALSE}
 library(tidyverse)
 library(lubridate)
+library(ggridges)
 ```
 
 ### Purpose
@@ -21,8 +24,6 @@ During 2020-2021, many hockey leagues (including NHL feeder leagues) had shorten
 
 ### Data
 
-
-
 ```{r data}
 ohl <- read_csv("../sams_ohl_data_request.csv")
 ohl_covid <- ohl %>%
@@ -30,7 +31,6 @@ ohl_covid <- ohl %>%
 ```
 
 ```{r}
-### Prep data
 ## Add treatment var:
 
 # Filtering only for players who played more than 10 games (should we combine number of games played across leagues?)
@@ -49,9 +49,10 @@ ohl_treatment <- ohl %>%
 plyr_quality <- ohl %>%
   filter(season == "2019-2020", league == "OHL") %>%
   group_by(player_id) %>%
-  mutate(plyr_quality = pts/gp) %>%
+  mutate(plyr_quality = sum(pts)/sum(gp)) %>%
+  filter(duplicated(player_id) == FALSE) %>%
   ungroup() %>%
-  select(player_id, team_name, plyr_quality)
+  select(player_id, plyr_quality)
 
 # View(plyr_quality %>%
 #   filter(duplicated(plyr_quality$player_id) == TRUE))
@@ -96,6 +97,15 @@ ohl_qlty <- ohl_age %>%
   # filter(ppg != 0) %>%
   # mutate(log_ppg = log(ppg))
 
+# ohl_qlty <- ohl_age %>%
+#   left_join(plyr_quality, by = "player_id") %>%
+#   group_by(player_id, season) %>%
+#   summarize_at(vars(gp, pts), "sum") %>%
+#   group_by(player_id) %>% 
+#   mutate(ppg_total = pts/gp, count_seasons = n()) %>% 
+#   filter(count_seasons == 2) %>%
+#   ungroup()
+
 # were they drafted
 ohl_filtered <- ohl_qlty %>%
   mutate(drafted = !is.na(draft_year)) %>%
@@ -110,105 +120,165 @@ ohl_treatment_21_22 <- ohl_filtered %>%
   filter(season == "2021-2022")
 ```
 
+#### Wrangling:
+
+**Filtering:**
+
+- 2019-2020 ("pre-COVID") and 2021-2022 ("post-COVID") seasons
+
+- league == OHL
+
+- Only players who played in the OHL during both pre- and post-COVID seasons
+
+**Variables added:**
+
+- points per game per season (combined if a player played for multiple teams in a season)
+
+- games played per season (combined if a player played for multiple teams in a season)
+
+- treatment (i.e. whether a player played more than 10 games during the COVID season)
+
+- age (approximately the oldest a player was in a given season)
+
+- player quality approximated by ppg in pre-COVID season
+
+- whether a player was drafted (not totally up to date)
+
 ### EDA
 
-#### EDA with confounders: position, age, player quality, treatment(, GP, season)?
+#### Did skaters who played during the COVID season perform better than those who didn't?
 
-check if explanatory variables are correlated with each other and response. 
+```{r}
+ggplot(ohl_treatment_21_22, aes(x = ppg_total, color = treatment)) +
+  geom_density() +
+  labs(title = "Skaters who played during COVID season appear to have\nperformed better post-COVID",
+       x = "PPG")
+```
+
+But is this difference "real"? Aka did not playing during the COVID season cause players to get worse at hockey or can this difference simply be explained by confounding variables?\n
+
+### EDA with variables of interest: PPG, position, age, player quality, treatment, GP, season
+
+check if explanatory variables are correlated with each other and response.
+
+#### Concerns about GP (and GP vs PPG)
+
+```{r}
+# distribution of games played
+ggplot(ohl_filtered, aes(x = gp_total)) +
+  geom_density() +
+  labs(title = "Most players played a significant number of games",
+       x = "GP") 
+```
 
 ```{r}
 # is gp correlated with ppg?
 ggplot(ohl_filtered, aes(x = gp_total, y = ppg_total)) +
-  geom_point() +
-  labs(title = "Relationship between PPG and GP", x = "Total GP", y = "Total PPG")#+
-  #geom_smooth()
-
-ggplot(ohl_filtered, aes(x = gp_total, y = log(ppg_total))) +
-  geom_point() +
-  labs(title = "Log relationship between PPG and GP", x = "Total GP", y = "Total PPG")#+
-  #geom_smooth()
+  geom_point(alpha = .5) +
+  labs(title = "Relationship between PPG and GP", x = "Total GP", y = "Total PPG")
 ```
 
-#### **Position**
+Takeaways:
 
-```{r}
-# density curve of ppg faceted by position
-ggplot(ohl_filtered) +
-  geom_density(aes(x = ppg_total, color = position)) +
-  labs(title = "PPG generally greater for forwards in 2019-20 and 2021-22 season")
-```
+- players who have inflated ppgs with low games played don't seem to be a concern
+
+- There could be some kind of relationship here -> PPG seems to increase with GP
+
 
 ```{r}
 # density curve of ppg faceted by position
 ggplot(ohl_filtered) +
   geom_density(aes(x = ppg_total, color = season)) +
-  facet_grid(rows = vars(position)) +
-  labs(title = "PPG generally higher in 2021-2022 season, regardless of position",
+  #facet_grid(rows = vars(position)) +
+  labs(title = "PPG generally higher in 2021-2022 season",
        x = "PPG")
 ```
 
+Takeaways: 
+
+- Likely because players get more skilled as they get older, and we are only including players who played both pre- and post-COVID
+
+- Something to control for in our model
+
+#### Position
+
 ```{r}
-# maybe due to a difference in amount of data per season?
-nrow(filter(ohl_filtered, season == "2019-2020"))
-nrow(filter(ohl_filtered, season == "2021-2022"))
+# density curve of ppg faceted by position
+ggplot(ohl_filtered) +
+  geom_density(aes(x = ppg_total, color = position)) +
+  labs(title = "PPG generally greater for forwards in 2019-20 and 2021-22 season",
+       x = "PPG")
 ```
+
+Takeaways:
+
+- Forwards score more than defensemen, which is obvious.
+
+- But, this becomes problematic with the way we're measuring player quality...
+
+**Problems with player quality and PPG**
+
+```{r}
+ggplot(ohl_filtered, aes(x = plyr_quality, color = position)) +
+  geom_density() +
+  labs(title = "Forwards more likely to be high quality players using PPG",
+       x = "Player Quality")
+```
+
+Takeaways:
+
+- Forwards weighted as better players in our model becuase of our biased metric
+
+- Drafted vs not drafted another way to measure quality, but few players are drafted, and it can be an all or nothing way to measure quality.
 
 ```{r}
 ggplot(ohl_treatment_21_22) +
   geom_density(aes(x = ppg_total, color = treatment)) +
   facet_grid(rows = vars(position)) +
-  labs(title = "PPG generally higher for those who played during COVID season\n in 2021-22 season")
+  labs(title = "PPG generally higher for those who played during COVID season\n in 2021-22 season, regardless of position",
+       x = "PPG")
 ```
 
+Takeaways:
+
+- Position alone is not accounting for difference in PPG for treatment vs non-treatment
+
+#### Age
+
+**What's the distribution of age?**
+
 ```{r}
-ggplot(ohl_treatment_21_22, aes(x = as.factor(position), y = ppg_total)) +
-  geom_point(alpha = .2) +
-  stat_summary(geom = "line", fun = mean, group = 1) 
+# observations per age group
+ggplot(ohl_filtered, aes(x = age)) +
+  geom_bar() +
+  labs("Distribution of Age",
+       x = "Age")
 ```
 
-```{r}
-# violates constant variance... much more variance among forwards than Ds
-lm_pos <- lm(ppg_total ~ position, data = ohl_filtered)
-summary(lm_pos)
-plot(lm_pos)
-```
-#### **Player quality**
+**Does PPG increase as players get older?**
 
 ```{r}
-ggplot(ohl_filtered, aes(x = ))
+ggplot(ohl_filtered, aes(x = ppg_total, y = as.factor(age))) +
+  geom_density_ridges() +
+  labs(title = "PPG likely increases with age",
+       x = "PPG",
+       y = "Age")
 ```
 
 
-#### **Age**
+**Does player quality increase as players get older?**
 
 ```{r}
-ggplot(ohl_filtered, aes(x = ppg_total)) +
-  geom_density() +
-  facet_grid(rows = vars(age))
-```
-
-```{r}
-ggplot(ohl_filtered, aes(x = age, y = plyr_quality)) +
-  geom_point(alpha = .5) 
-
-library(ggridges)
+# player quality vs age
 ggplot(ohl_filtered, aes(x = plyr_quality)) +
   geom_density_ridges(aes(y = as.factor(age))) +
-  facet_grid(rows = vars(age)) +
-  labs(title = "Player quality generally increases with age")
+  labs(title = "Player quality likely increases with age",
+       x = "Player Quality",
+       y = "Age")
 ```
 
-```{r}
-plot(lm(plyr_quality ~ age, data = ohl_filtered))
-```
+**Were older players more likely to play during COVID (since older players are likely higher quality players)?**
 
-
-```{r}
-mosaicplot(table("Age" = ohl_filtered$age,
-                 "Position" = ohl_filtered$position),
-           main = "Position independent of age",
-           shade = TRUE)
-```
 ```{r}
 # age vs treatment
 mosaicplot(table("Age" = ohl_filtered$age,
@@ -217,56 +287,73 @@ mosaicplot(table("Age" = ohl_filtered$age,
            shade = TRUE)
 ```
 
+Takeaways:
+
+- Not really...
+
+**Do older players play more games?**
+
 ```{r}
 # age vs gp
-ggplot(ohl_filtered, aes(x = age, y = gp_total)) +
-  geom_point(alpha = .5)
-ggplot(ohl_filtered, aes(x = gp_total)) +
-  geom_density() +
-  facet_grid(rows = vars(age))
-table(ohl_filtered$age)
+ggplot(ohl_filtered, aes(x = gp_total, y = as.factor(age))) +
+  geom_density_ridges() +
+  labs(title = "Older players more likely to play more games",
+       x = "GP")
 ```
 
+#### Player quality
+
+**Did player quality influence whether someone played during COVID season?**
+
+```{r}
+ggplot(ohl_filtered, aes(x = plyr_quality, color = treatment)) +
+  geom_density() +
+  labs(title = "Players who played during COVID season were more likely to be higher quality players",
+       x = "Player Quality")
+```
+
+Takeaways:
+
+- We should control for this relationship in our model (interaction term in linear model?)
+- Note: there are a lot more players who didn't play than played so this may affect our analysis.
 
 ### Modeling
+
+#### Basic multiple regression model, no interaction
 
 ```{r, warning = TRUE}
 # vanilla MLR
 mlr <- lm(ppg_total ~ treatment + season + position + plyr_quality + age, data = ohl_filtered)
-mlr_summary <- summary(mlr)
+#mlr_summary <- summary(mlr)
 plot(mlr)
+```
 
+#### Does putting PPG on a log scale help meet model conditions for inference?
+
+```{r}
 # ppg on log scale
 log_mlr <- lm(log(ppg_total) ~ treatment + season + position + plyr_quality + age, data = filter(ohl_filtered, ppg_total != 0))
-summary(log_mlr)
+#summary(log_mlr)
 plot(log_mlr)
+```
 
+No...
+
+#### Does allowing for all interactions between variables help us meet model conditions?
+
+```{r}
 mlr_int <- lm(ppg_total ~ treatment*position*season*plyr_quality*age*drafted, data = ohl_filtered)
-summary(mlr_int)
+#summary(mlr_int)
 plot(mlr_int)
 ```
 
-```{r}
-ohl_mod <- ohl_filtered %>%
-  mutate(resids = mlr_summary$resid > .3)
-```
+No... we need a more complex model.
 
-```{r}
-mosaicplot(table("Position" = ohl_mod$position,
-                 "Resids" = ohl_mod$resids),
-           main = "",
-           shade = TRUE)
-mosaicplot(table("Shoots" = ohl_mod$shoots,
-                 "Resids" = ohl_mod$resids),
-           main = "",
-           shade = TRUE)
-mosaicplot(table("Drafted" = ohl_mod$drafted,
-                 "Resids" = ohl_mod$resids),
-           main = "",
-           shade = TRUE)
-```
+### Questions/Concerns
 
-
+- PPG is likely not adequately measuring player performance (especially for defensemen)
+  - Can we get more stats like ice time, shots blocked, shot on goal, turnovers created, etc?
+  - NHL data?
+- Multiple regression model accounting for all interactions between explanatory variables does not meet conditions for inference.
+- Next steps for building models/maybe starting causal inference?
 ...
-
-

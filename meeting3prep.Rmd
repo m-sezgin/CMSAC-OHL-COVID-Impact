@@ -91,13 +91,13 @@ recent %>%
 summary(lm(ppg ~ got_drafted, data = recent2))
 recent2 %>% 
   ggplot(aes(x = ppg)) +
-  geom_histogram(aes(fill = got_drafted), alpha = 0.5) +
+  geom_density(aes(fill = got_drafted), alpha = 0.5) +
   theme_bw() +
   labs(x = "points per game", fill = "drafted") +
   facet_wrap(~season)
 ```
 
-Very low R-squared value, significant p-value. 
+- Very low R-squared value, significant p-value, but we can't use these statistics because model does not meet conditions for inference.
 
 #### Draft pick number / round: 
 ```{r}
@@ -117,8 +117,9 @@ drafted %>%
 mosaicplot(table(drafted$round, drafted$season))
 ```
 
-Coefficient for 'overall_pick_number' is small. 
-The jitter plot shows that some players drafted in the seventh round played about as many games as those drafted in earlier rounds.
+- Coefficient for 'overall_pick_number' is small, but we can't use these statistics because model does not meet conditions for inference.
+
+- The jitter plot shows that some players drafted in the seventh round played about as many games as those drafted in earlier rounds.
 
 
 #### Position

@@ -5,15 +5,23 @@ date: "`r Sys.Date()`"
 output: openintro::lab_report
 ---
 
+```{r, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+
 ```{r load-packages, message=FALSE}
 library(tidyverse)
+library(lubridate)
 ```
 
 ### Purpose
 
 During 2020-2021, many hockey leagues (including NHL feeder leagues) had shortened seasons or no season due to the restrictions on play caused by the COVID-19 pandemic. Some players experiencing restrictions on play in played in other leagues or tournaments during the 2021-2022 season. Others did not play any league/tournament games during the 2020-2021 season. This poses the question of whether not playing games during the 2020-2021 COVID season negatively impacted player development (or caused players to get worse). To answer this question, we will examine data from the Ontario Hockey League, which did not play any games during the 2020-2021 season. Some players from this league chose to play in other leagues or tournaments while others did not.
 
-### Load data
+### Data
+
+
 
 ```{r data}
 ohl <- read_csv("../sams_ohl_data_request.csv")
@@ -21,9 +29,8 @@ ohl_covid <- ohl %>%
   filter(season %in% c("2019-2020","2020-2021", "2021-2022"))
 ```
 
-### Prep data
-
 ```{r}
+### Prep data
 ## Add treatment var:
 
 # Filtering only for players who played more than 10 games (should we combine number of games played across leagues?)
@@ -54,30 +61,49 @@ plyr_quality <- ohl %>%
 
 
 # We need to check that each player played in the OHL in 2019-2020 and 2021-2022
-ohl_filtered <- ohl %>%
+ohl_szn <- ohl %>%
   filter(season %in% c("2019-2020", "2021-2022"), league == "OHL") %>%
   group_by(player_id) %>%
   mutate(played_2019 = season == "2019-2020",
          played_2021 = season == "2021-2022",
          played_both_szn = sum(played_2019) & sum(played_2021)) %>%
   ungroup() %>%
-  filter(played_both_szn == TRUE) %>%
+  filter(played_both_szn == TRUE) 
+
+# add treatment variable through join
+ohl_trt <- ohl_szn %>%
   left_join(select(ohl_treatment, player_id, season, team_name, treatment), by = c("player_id", "team_name", "season")) %>%
-  mutate(ppg = pts/gp,
-         age = trunc((dob %--% as.Date("2022-01-01")) / years(1))
-  ) %>%
-  filter(age %in% 16:22) %>%
-  left_join(plyr_quality, by = c("player_id", "team_name")) %>%
+  mutate(ppg = pts/gp) 
+
+# add age variable
+ohl_age <- ohl_trt %>%
   group_by(player_id, season) %>%
-  mutate(ppg_total = sum(pts)/sum(gp)) %>%
+  mutate(year = strsplit(season, "-")[[1]][2]) %>%
+  mutate(age = trunc((dob %--% as.Date(paste0(year, "-05-01"))) / years(1))) %>%
+  ungroup() #%>%
+  #filter(age %in% 16:22)
+    
+# add player quality
+ohl_qlty <- ohl_age %>%
+  left_join(plyr_quality, by = "player_id") %>%
+  group_by(player_id, season) %>%
+  mutate(ppg_total = sum(pts)/sum(gp),
+         gp_total = sum(gp),
+         pts_total = sum(pts)) %>%
   arrange(player_id, season, -plyr_quality) %>%
-  filter(duplicated(player_id) == FALSE) #%>%
+  filter(duplicated(player_id) == FALSE) %>%
+  ungroup()#%>%
   # filter(ppg != 0) %>%
   # mutate(log_ppg = log(ppg))
 
+# were they drafted
+ohl_filtered <- ohl_qlty %>%
+  mutate(drafted = !is.na(draft_year)) %>%
+  select(season, player_id, treatment, first_name, last_name, position, plyr_quality, age, gp_total, pts_total, ppg_total, drafted, draft_year, round, overall_pick_num, shoots)
+
 ## Trying to combine players who played for two teams into one
 
-combined <- ohl_filtered %>%
+# combined <- ohl_filtered %>%
   
 
 ohl_treatment_21_22 <- ohl_filtered %>%
@@ -86,70 +112,161 @@ ohl_treatment_21_22 <- ohl_filtered %>%
 
 ### EDA
 
-#### EDA with confounders: position, age, player quality
+#### EDA with confounders: position, age, player quality, treatment(, GP, season)?
+
+check if explanatory variables are correlated with each other and response. 
 
 ```{r}
-library(GGally)
+# is gp correlated with ppg?
+ggplot(ohl_filtered, aes(x = gp_total, y = ppg_total)) +
+  geom_point() +
+  labs(title = "Relationship between PPG and GP", x = "Total GP", y = "Total PPG")#+
+  #geom_smooth()
 
-ohl_filtered %>%
-  select(season, position, age, ppg) %>%
-  ggpairs()
+ggplot(ohl_filtered, aes(x = gp_total, y = log(ppg_total))) +
+  geom_point() +
+  labs(title = "Log relationship between PPG and GP", x = "Total GP", y = "Total PPG")#+
+  #geom_smooth()
 ```
-
 
 #### **Position**
 
 ```{r}
 # density curve of ppg faceted by position
-ggplot(ohl_treatment_21_22) +
-  geom_density(aes(x = ppg)) +
-  facet_grid(rows = vars(position))
+ggplot(ohl_filtered) +
+  geom_density(aes(x = ppg_total, color = position)) +
+  labs(title = "PPG generally greater for forwards in 2019-20 and 2021-22 season")
 ```
 
 ```{r}
 # density curve of ppg faceted by position
 ggplot(ohl_filtered) +
-  geom_density(aes(x = ppg, color = season)) +
-  facet_grid(rows = vars(position))
+  geom_density(aes(x = ppg_total, color = season)) +
+  facet_grid(rows = vars(position)) +
+  labs(title = "PPG generally higher in 2021-2022 season, regardless of position",
+       x = "PPG")
 ```
 
+```{r}
+# maybe due to a difference in amount of data per season?
+nrow(filter(ohl_filtered, season == "2019-2020"))
+nrow(filter(ohl_filtered, season == "2021-2022"))
+```
 
 ```{r}
 ggplot(ohl_treatment_21_22) +
-  geom_density(aes(x = ppg, color = treatment)) +
-  facet_grid(rows = vars(position))
+  geom_density(aes(x = ppg_total, color = treatment)) +
+  facet_grid(rows = vars(position)) +
+  labs(title = "PPG generally higher for those who played during COVID season\n in 2021-22 season")
 ```
 
 ```{r}
-ggplot(ohl_treatment_21_22, aes(x = as.factor(position), y = ppg)) +
+ggplot(ohl_treatment_21_22, aes(x = as.factor(position), y = ppg_total)) +
   geom_point(alpha = .2) +
   stat_summary(geom = "line", fun = mean, group = 1) 
 ```
 
 ```{r}
 # violates constant variance... much more variance among forwards than Ds
-lm_pos <- lm(ppg ~ position, data = filter(ohl_filtered, gp > 20))
+lm_pos <- lm(ppg_total ~ position, data = ohl_filtered)
 summary(lm_pos)
 plot(lm_pos)
 ```
 #### **Player quality**
 
+```{r}
+ggplot(ohl_filtered, aes(x = ))
+```
+
+
+#### **Age**
+
+```{r}
+ggplot(ohl_filtered, aes(x = ppg_total)) +
+  geom_density() +
+  facet_grid(rows = vars(age))
+```
+
+```{r}
+ggplot(ohl_filtered, aes(x = age, y = plyr_quality)) +
+  geom_point(alpha = .5) 
+
+library(ggridges)
+ggplot(ohl_filtered, aes(x = plyr_quality)) +
+  geom_density_ridges(aes(y = as.factor(age))) +
+  facet_grid(rows = vars(age)) +
+  labs(title = "Player quality generally increases with age")
+```
+
+```{r}
+plot(lm(plyr_quality ~ age, data = ohl_filtered))
+```
+
+
+```{r}
+mosaicplot(table("Age" = ohl_filtered$age,
+                 "Position" = ohl_filtered$position),
+           main = "Position independent of age",
+           shade = TRUE)
+```
+```{r}
+# age vs treatment
+mosaicplot(table("Age" = ohl_filtered$age,
+                 "Treatment" = ohl_filtered$treatment),
+           main = "Playing during COVID season independent of age",
+           shade = TRUE)
+```
+
+```{r}
+# age vs gp
+ggplot(ohl_filtered, aes(x = age, y = gp_total)) +
+  geom_point(alpha = .5)
+ggplot(ohl_filtered, aes(x = gp_total)) +
+  geom_density() +
+  facet_grid(rows = vars(age))
+table(ohl_filtered$age)
+```
 
 
 ### Modeling
 
-```{r}
+```{r, warning = TRUE}
 # vanilla MLR
-mlr <- lm(ppg ~ treatment + season + position, data = ohl_filtered)
-summary(mlr)
+mlr <- lm(ppg_total ~ treatment + season + position + plyr_quality + age, data = ohl_filtered)
+mlr_summary <- summary(mlr)
 plot(mlr)
 
 # ppg on log scale
-log_mlr <- lm(log(ppg) ~ treatment + season + position, data = filter(ohl_filtered, ppg != 0))
+log_mlr <- lm(log(ppg_total) ~ treatment + season + position + plyr_quality + age, data = filter(ohl_filtered, ppg_total != 0))
 summary(log_mlr)
 plot(log_mlr)
+
+mlr_int <- lm(ppg_total ~ treatment*position*season*plyr_quality*age*drafted, data = ohl_filtered)
+summary(mlr_int)
+plot(mlr_int)
+```
+
+```{r}
+ohl_mod <- ohl_filtered %>%
+  mutate(resids = mlr_summary$resid > .3)
+```
+
+```{r}
+mosaicplot(table("Position" = ohl_mod$position,
+                 "Resids" = ohl_mod$resids),
+           main = "",
+           shade = TRUE)
+mosaicplot(table("Shoots" = ohl_mod$shoots,
+                 "Resids" = ohl_mod$resids),
+           main = "",
+           shade = TRUE)
+mosaicplot(table("Drafted" = ohl_mod$drafted,
+                 "Resids" = ohl_mod$resids),
+           main = "",
+           shade = TRUE)
 ```
 
 
 ...
+
 

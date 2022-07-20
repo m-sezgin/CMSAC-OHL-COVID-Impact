@@ -18,7 +18,7 @@ knitr::opts_chunk$set(echo = TRUE)
 1. play with transformations
 1. look at regression coefficients
 
-#### TAKE OUT BEFORE MEETING
+#### TAKE OUT BEFORE MEETING TOMORROW
 
 ## Introduction
 purpose:

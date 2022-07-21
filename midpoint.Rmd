@@ -1,14 +1,216 @@
 ---
-title: "mid_check"
-output: html_document
-date: '2022-07-21'
+title: "Does Not Playing Hockey Make You Worse At Hockey?"
+subtitle: "Midpoint Draft"
+author: "Jackie Jovanovic & Michele Sezgin"
+output: 
+  html_document:
+    code_folding: hide
+date: 'July 22nd, 2022'
 ---
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300&family=Source+Sans+Pro&display=swap" rel="stylesheet">
+<style>
+
+body{
+font-family: 'Source Sans Pro', sans-serif;
+}
+
+</style>
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+# Introduction 
+
+Project Motivation: Investigate the impact of pandemic restrictions on hockey player development.
+
+*   2020-2021 many leagues had a shortened season or no season
+*   Players had to find new leagues and/or tournament
+*   Some players did not play that season
+
+```{r load-packages, include = FALSE}
+# load the packages
+library(tidyverse)
+library(patchwork)
+library(lubridate)
+library(ggridges)
+library(RColorBrewer)
+library(kableExtra)
+```
+
+```{r data-jackie, message = FALSE, warning = FALSE}
+# load the data
+library(readr)
+sams_ohl_data_request <- read_csv("C:/Users/jacki/Desktop/REU/hockey/sams_ohl_data_request.csv")
+View(sams_ohl_data_request)
+
+# filter years
+recent <- sams_ohl_data_request %>% 
+  filter(season %in% c("2019-2020", "2020-2021", "2021-2022"))
+
+# add points per game columns
+recent <- recent %>% 
+  mutate(ppg = g/gp)
+
+# add drafted y/n column 
+recent <- recent %>% 
+  mutate(got_drafted = case_when(!is.na(draft_year) ~ 'Yes',
+                                 TRUE ~ 'No'))
+
+# make dataframe of drafted players
+drafted <- recent %>% 
+  filter(!is.na(draft_year)) %>% 
+  filter(draft_year < 2020)
+```
+
+```{r data-michele, message = FALSE, warning = FALSE}
+ohl <- read_csv("../sams_ohl_data_request.csv")
+ohl_covid <- ohl %>%
+  filter(season %in% c("2019-2020","2020-2021", "2021-2022"))
+
+## Add treatment var:
+# Filtering only for players who played more than 10 games (should we combine number of games played across leagues?)
+ohl_20_21 <- ohl %>%
+  filter(season == "2020-2021", gp > 10)
+# Split players up into treatment vs non-treatment
+ohl_treatment <- ohl %>%
+  filter(season %in% c("2019-2020", "2021-2022"), league == "OHL") %>%
+  group_by(player_id, season) %>%
+  mutate(ppg = sum(pts)/sum(gp),
+         treatment = ifelse(player_id %in% ohl_20_21$player_id, "Played", "Didn't play")
+  ) %>%
+  ungroup()
+plyr_quality <- ohl %>%
+  filter(season == "2019-2020", league == "OHL") %>%
+  group_by(player_id) %>%
+  mutate(plyr_quality = sum(pts)/sum(gp)) %>%
+  filter(duplicated(player_id) == FALSE) %>%
+  ungroup() %>%
+  select(player_id, plyr_quality)
+# View(plyr_quality %>%
+#   filter(duplicated(plyr_quality$player_id) == TRUE))
+# ## need to deal with duplicate players/rows
+# View(ohl_filtered %>%
+#   filter(duplicated(ohl_filtered$player_id) == TRUE))
+ohl_pm <- ohl %>%
+  filter(season %in% c("2019-2020", "2021-2022"), league == "OHL") %>%
+  group_by(team_name, season) %>%
+  arrange(team_name, season, desc(pm)) %>%
+  mutate(pm_rank = 1:n(),
+         pm_relative = pm - mean(pm)/mean(pm)
+  ) %>%
+  ungroup()
+# We need to check that each player played in the OHL in 2019-2020 and 2021-2022
+ohl_szn <- ohl_pm %>%
+  group_by(player_id) %>%
+  mutate(played_2019 = season == "2019-2020",
+         played_2021 = season == "2021-2022",
+         played_both_szn = sum(played_2019) & sum(played_2021)) %>%
+  ungroup() %>%
+  filter(played_both_szn == TRUE)
+# add treatment variable through join
+ohl_trt <- ohl_szn %>%
+  left_join(select(ohl_treatment, player_id, season, team_name, treatment), by = c("player_id", "team_name", "season")) %>%
+  mutate(ppg = pts/gp) 
+# add age variable
+ohl_age <- ohl_trt %>%
+  group_by(player_id, season) %>%
+  mutate(year = strsplit(season, "-")[[1]][1]) %>%
+  mutate(age = trunc((dob %--% as.Date(paste0(year, "-9-15"))) / years(1)),
+         age_continuous = (dob %--% as.Date(paste0(year, "-09-15"))) / years(1)
+  ) %>%
+  ungroup() #%>%
+  #filter(age %in% 16:22)
+    
+# add player quality
+ohl_qlty <- ohl_age %>%
+  left_join(plyr_quality, by = "player_id") %>%
+  group_by(player_id, season) %>%
+  mutate(ppg_total = sum(pts)/sum(gp),
+         gp_total = sum(gp),
+         pts_total = sum(pts)) %>%
+  arrange(player_id, season, -plyr_quality) %>%
+  filter(duplicated(player_id) == FALSE) %>%
+  ungroup()#%>%
+  # filter(ppg != 0) %>%
+  # mutate(log_ppg = log(ppg))
+# ohl_qlty <- ohl_age %>%
+#   left_join(plyr_quality, by = "player_id") %>%
+#   group_by(player_id, season) %>%
+#   summarize_at(vars(gp, pts), "sum") %>%
+#   group_by(player_id) %>% 
+#   mutate(ppg_total = pts/gp, count_seasons = n()) %>% 
+#   filter(count_seasons == 2) %>%
+#   ungroup()
+# were they drafted
+ohl_filtered <- ohl_qlty %>%
+  mutate(drafted = !is.na(draft_year)) %>%
+  select(season, player_id, treatment, first_name, last_name, position, plyr_quality, age, gp_total, pts_total, ppg_total, drafted, draft_year, round, overall_pick_num, age_continuous, pm_relative, pm_rank, pm)
+## Trying to combine players who played for two teams into one
+# combined <- ohl_filtered %>%
+  
+ohl_treatment_21_22 <- ohl_filtered %>%
+  filter(season == "2021-2022")
+```
+
+# Data
+
+We are looking at data from the 2019-2020, 2020-2021, and 2021-2022 seasons for junior leagues across Canada and Europe.
+
+<span style="color: darkblue;">
+**Raw Data:**
+</span>
+
+```{r, message = FALSE, warning = FALSE}
+recent %>% 
+  dplyr::select(name, team_name, season, league, position, 
+                gp, g, a, pts, pm) %>%
+  head(5) %>% 
+  knitr::kable()%>% 
+  kable_styling("striped")
+```
+
+<span style="color: darkblue;">
+**Player Example:**
+</span>
+
+```{r, message = FALSE, warning = FALSE}
+recent %>% 
+  dplyr::select(name, team_name, season, league, position, 
+                gp, g, a, pts, pm) %>%
+  filter(name == "Brett Harrison") %>%
+  arrange(season) %>% 
+  knitr::kable() %>% 
+  kable_styling("striped")
+```
+
+# Exploratory Data Analysis
+
+<span style="color: darkblue;">
+**Points Per Game and Games Played:**
+</span>
+
+```{r, fig.align = 'center', fig.width = 10}
+ppg_ohl <- recent %>% 
+  filter(league == "OHL") %>%
+  filter(ppg > 0) %>% 
+  ggplot(aes(x = gp, y = ppg)) +
+  geom_point(aes(color = got_drafted), alpha = 0.3) +
+  labs(title = "OHL", x = "Games Played", y = "Points Per Game",
+       color = "Drafted Before \n 2020-2021 Season") +
+  theme_bw() +
+  theme(legend.position = "none")
+ppg_all <- recent %>% 
+  filter(ppg > 0) %>% 
+  ggplot(aes(x = gp, y = ppg)) +
+  geom_point(aes(color = got_drafted), alpha = 0.3) +
+  labs(title = "All Leagues", x = "Games Played", y = "Points Per Game",
+       color = "Drafted Before \n 2020-2021 Season") +
+  theme_bw()
+ppg_ohl + ppg_all
+```
 
 
-Hockey project

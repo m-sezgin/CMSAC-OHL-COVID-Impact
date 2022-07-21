@@ -151,10 +151,6 @@ ohl_treatment_21_22 <- ohl_filtered %>%
 
 ## Data:
 ```{r}
-#recent %>% 
- # select(team_name:pm) %>% 
-  #head(5) %>% 
-  #knitr::kable()
 recent %>% 
   dplyr::select(team_name, season, league, gp, g, a, pts, pm) %>%
   head(5) %>% 

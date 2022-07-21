@@ -190,7 +190,7 @@ recent %>%
 # Exploratory Data Analysis
 
 <span style="color: darkblue;">
-**Points Per Game and Games Played:**
+**Points Per Game and Games Played**
 </span>
 
 ```{r, fig.align = 'center', fig.width = 10}

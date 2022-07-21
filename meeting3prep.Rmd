@@ -15,6 +15,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(RColorBrewer)
 library(ggbeeswarm)
+library(ggfortify)
 # load data
 library(readr)
 sams_ohl_data_request <- read_csv("C:/Users/jacki/Desktop/REU/hockey/sams_ohl_data_request.csv")
@@ -94,6 +95,12 @@ recent2 %>%
   theme_bw() +
   labs(x = "points per game", fill = "drafted") +
   facet_wrap(~season)
+recent2 %>% 
+  ggplot(aes(x = ppg)) +
+  geom_density(aes(fill = got_drafted), alpha = 0.5) +
+  theme_bw() +
+  labs(x = "points per game", fill = "drafted") +
+  facet_wrap(~season)
 ```
 
 Very low R-squared value, significant p-value. 
@@ -120,7 +127,7 @@ Coefficient for 'overall_pick_number' is small.
 The jitter plot shows that some players drafted in the seventh round played about as many games as those drafted in earlier rounds.
 
 
-#### Position
+#### Position:
 ```{r}
 drafted %>% 
   ggplot(aes(x = factor(position), y = gp)) +
@@ -144,7 +151,7 @@ drafted %>%
 
 Defensemen have less points and lower points per game than forwards. Players from different draft rounds are intermixed. 
 
-#### ppg in 2019-2020
+#### ppg in 2019-2020:
 ```{r}
 # players with stats from both 2019-2020 and 2021-2022
 summed_both <- recent %>% 
@@ -166,6 +173,23 @@ summed_both %>%
 ```
 
 Points per game was slightly higher in the 2019-2020 season. 
+
+### Checking Conditions
+#### If drafted or not
+```{r}
+drafted_lm <- lm(ppg ~ got_drafted, data = recent2)
+autoplot(drafted_lm)
+```
+
+#### Draft pick number / round: 
+```{r}
+dpick_lm <- lm(ppg ~ overall_pick_num, data = drafted)
+autoplot(dpick_lm)
+plot(dpick_lm)
+dpick_lm2 <- lm(log(ppg) ~ overall_pick_num, data = (filter(drafted, ppg != 0)))
+plot(dpick_lm2)
+```
+
 
 ## Questions:
 

@@ -12,18 +12,12 @@ date: 'July 21st, 2022'
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Goals:
-1. get multiple linear regression working
-1. establish variables associated with treatment & response and graph to show potential confounders
-1. play with transformations
-1. look at regression coefficients
-
-#### TAKE OUT BEFORE MEETING
-
 ## Introduction
-purpose:
 
-WRITE
+Project Motivation: Investigate the impact of pandemic restrictions on hockey player development.
+
+In 2020-2021, many hockey leagues had either a shortened season or no season at all due to COVID-19. When a league, such as the OHL, was shutdown, players had to find different leagues and/or tournaments to participate in. Some players were unable to practice with a team for that season. How did this disruption in training influence a player's development? To answer this question, we will examine data from the 2019-2020, 2020-2021, and 2021-2022 seasons for junior leagues.
+
 
 ```{r load-packages, message = FALSE, warning = FALSE}
 # load the packages
@@ -49,11 +43,14 @@ recent <- sams_ohl_data_request %>%
 recent <- recent %>% 
   mutate(ppg = g/gp)
 
-# make dataframe of drafted players
-drafted <- recent %>% 
-  filter(!is.na(draft_year)) %>% 
+# add drafted y/n column 
+recent <- recent %>% 
   mutate(got_drafted = case_when(!is.na(draft_year) ~ 'Yes',
                                  TRUE ~ 'No'))
+
+# make dataframe of drafted players
+drafted <- recent %>% 
+  filter(!is.na(draft_year))
 
 # only the 2020-2021 season
 drafted2021 <- drafted %>% 
@@ -65,7 +62,6 @@ ohl <- read_csv("../sams_ohl_data_request.csv")
 ohl_covid <- ohl %>%
   filter(season %in% c("2019-2020","2020-2021", "2021-2022"))
 ```
-
 
 ```{r}
 ## Add treatment var:
@@ -153,9 +149,22 @@ ohl_treatment_21_22 <- ohl_filtered %>%
   filter(season == "2021-2022")
 ```
 
+## Data:
+```{r}
+#recent %>% 
+ # select(team_name:pm) %>% 
+  #head(5) %>% 
+  #knitr::kable()
+recent %>% 
+  dplyr::select(team_name, season, league, gp, g, a, pts, pm) %>%
+  head(5) %>% 
+  knitr::kable()
+```
+
+
 ## EDA Treatment
 
-```{r}
+```{r, fig.align = 'center'}
 # drafted vs treatment
 mosaicplot(table("Drafted" = ohl_filtered$drafted,
                  "Treatment" = ohl_filtered$treatment),
@@ -163,12 +172,12 @@ mosaicplot(table("Drafted" = ohl_filtered$drafted,
            shade = FALSE)
 ```
 
-```{r}
+```{r, fig.align = 'center'}
 ggplot(ohl_filtered, aes(x = gp_total, y = plyr_quality, color = position)) +
   geom_point(alpha = .5)
 ```
 
-```{r}
+```{r, fig.align = 'center'}
 # drafted vs treatment
 mosaicplot(table("season" = ohl_filtered$season,
                  "Age" = ohl_filtered$age),
@@ -176,7 +185,7 @@ mosaicplot(table("season" = ohl_filtered$season,
            shade = FALSE)
 ```
 
-```{r}
+```{r, fig.align = 'center'}
 #continuous age vs ppg
 ggplot(ohl_filtered, aes(x = age_continuous, y = ppg_total)) +
   geom_point(alpha = .5)
@@ -189,7 +198,7 @@ ggplot(aes(x = age_continuous, y = ppg_total)) +
 
 ## Refit Multiple Linear Regression
 
-```{r code-chunk-label}
+```{r code-chunk-label, fig.align = 'center'}
 mlr_interaction <- lm(ppg_total ~ position*plyr_quality + treatment*drafted + gp_total + plyr_quality*gp_total + plyr_quality*drafted + age_continuous*plyr_quality + season, data = ohl_filtered)
 summary(mlr_interaction)
 plot(mlr_interaction)
@@ -232,8 +241,8 @@ note: the gamma distribution line is currently commented out because it was givi
 ### Draft
 #### Draft Pick Number with Games Played
 
-```{r}
-# draft pick # on x-axis, gp on y-axis
+```{r, fig.align = 'center', message = FALSE, warning = FALSE}
+# draft pick number on x-axis, gp on y-axis
 drafted %>% 
   ggplot(aes(x = overall_pick_num, y = gp)) +
   geom_point(alpha = 0.5) +
@@ -242,38 +251,74 @@ drafted %>%
   theme_bw()
 ```
 
-```{r}
+#### Draft Status and Seasons Played
+```{r, fig.align = 'center'}
+mosaicplot(table(recent$got_drafted, recent$season))
+```
+
+#### Draft Round and Games Played {.tabset}
+
+##### Faceted by Season
+```{r, fig.align = 'center', fig.width= 10, message = FALSE, warning = FALSE}
 drafted %>% 
   ggplot(aes(x = gp)) +
   geom_density(aes(color = factor(round)), alpha = 0.3) +
-  labs(x = "games played", color = "round") +
-  theme_bw()
+  labs(x = "games played", color = "round drafted",
+       caption = "Players drafted in any year.") +
+  theme_bw() +
+  facet_wrap(~season)
+  #scale_color_brewer(palette = "BuPu", type = "seq", 
+                    # direction = -1)
 # still needs work -> thicken line
 ```
 
+##### Faceted by Round
+```{r, fig.align = 'center', message = FALSE, warning = FALSE}
+drafted %>% 
+  ggplot(aes(x = gp)) +
+  geom_density(color = "cornflowerblue") +
+  labs(x = "games played", caption = "Players drafted in any year.") +
+  theme_bw() +
+  facet_wrap(~round)
+```
+
+##### {-}
+
+#### Draft Status and Games Played
+```{r,fig.align = 'center', message=FALSE, warning=FALSE, fig.width=10}
+recent %>% 
+  ggplot(aes(x = gp)) +
+  geom_density(aes(color = factor(got_drafted)), alpha = 0.3) +
+  labs(x = "games played", color = "draft status",
+       caption = "All players.") +
+  theme_bw() +
+  facet_wrap(~season)
+```
+
+
 ### Goals and Assists
 
-```{r}
+```{r, fig.align = 'center', fig.width = 10}
 goals <- drafted %>% 
   #filter(round %in% c(1, 4, 7)) %>% 
   ggplot(aes(x = g)) +
   geom_density(aes(color = factor(round)), size = .5) +
   labs(x = "goals", color = "round") +
   theme_bw() +
-  theme(legend.position = "none")
+  theme(legend.position = "none") +
+  facet_wrap(~position)
 
 assists <- drafted %>% 
   #filter(round %in% c(1, 4, 7)) %>% 
   ggplot(aes(x = a)) +
   geom_density(aes(color = factor(round)), size = .5) +
   labs(x = "assists", color = "round") +
-  theme_bw()
+  theme_bw() +
+  facet_wrap(~position)
 
 # shown side-by-side
 goals + assists
 ```
-
-### Plus-Minus
 
 ```{r}
 teams <- drafted2021 %>% 
@@ -282,5 +327,127 @@ teams <- drafted2021 %>%
   filter(count_players >= 2)
 ```
 
+### Plus-Minus {.tabset}
+
+#### Highest Player
+```{r, fig.align = 'center'}
+rank %>% 
+  filter(team_name == "Ottawa 67's") %>%
+  ggplot(aes(x = player_id, y = pm)) +
+  geom_point() +
+  geom_hline(aes(yintercept = mean(pm)), color = "red") +
+  geom_hline(aes(yintercept = 0), color = "blue") +
+  labs(title = "Ottawa 67's", subtitle = "Highest Player Plus-Minus", 
+       y = "Plus-Minus") +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        axis.title.x = element_blank()) +
+  facet_grid(~season)
+```
+
+#### Lowest Player
+```{r, fig.align = 'center'}
+rank %>% 
+  filter(team_name == "North Bay Battalion") %>%
+  ggplot(aes(x = player_id, y = pm)) +
+  geom_point() +
+  geom_hline(aes(yintercept = mean(pm)), color = "red") +
+  geom_hline(aes(yintercept = 0), color = "blue") +
+  labs(title = "North Bay Battalion", subtitle = "Lowest Player Plus-Minus", 
+       y = "Plus-Minus") +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        axis.title.x = element_blank()) +
+  facet_grid(~season)
+```
+
+#### Median Player
+```{r, fig.align = 'center'}
+rank %>% 
+  filter(team_name == "Hamilton Bulldogs") %>%
+  ggplot(aes(x = player_id, y = pm)) +
+  geom_point() +
+  geom_hline(aes(yintercept = mean(pm)), color = "red") +
+  geom_hline(aes(yintercept = 0), color = "blue") +
+  labs(title = "Hamilton Bulldogs", subtitle = "Median Player Plus-Minus", 
+       y = "Plus-Minus") +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        axis.title.x = element_blank()) +
+  facet_grid(~season)
+```
+Note: Many teams had the same amount of players with a -1 plus-minus.
+
+#### Teams
+```{r, message = FALSE, fig.align = 'center'}
+teampm <- recent %>%
+  filter(league == "OHL") %>%
+  group_by(team_name, season) %>%
+  arrange(team_name, season, desc(pm)) %>%
+  summarize(team_pm = mean(pm))
+teampm %>%
+  ggplot(aes(x = team_name, y = team_pm)) +
+  geom_point() +
+  geom_hline(aes(yintercept = mean(team_pm)), color = "red") +
+  geom_hline(aes(yintercept = 0), color = "blue") +
+  #geom_text(aes(x = 1, y = -1, label = round(mean(team_pm), 2), vjust = -1)) +
+  labs(title = "Team Plus-Minus", 
+       y = "Plus-Minus") +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        axis.title.x = element_blank()) +
+  facet_grid(~season)
+```
+
+### {-}
+
+#### Drafted vs. Undrafted
+
+```{r, fig.align = 'center'}
+rank2 <- recent %>%
+  filter(league == "OHL") %>%
+  group_by(team_name, season) %>%
+  arrange(team_name, season, desc(pm)) %>%
+  mutate(rank = 1:n()) %>%
+  ungroup()
+rank2 %>% 
+  ggplot(aes(x = factor(got_drafted), y = pm)) +
+  geom_jitter(alpha = 0.4, position = position_jitter(0.2),
+              color = "cornflowerblue") +
+  labs(x = "Draft Status", y = "Plus-Minus", caption = "OHL data") +
+  theme_bw()
+```
+
+
+### Points Per Game
+
+#### Different Ways to Facet {.tabset}
+##### Position
+```{r, fig.align='center', message=FALSE, warning=FALSE}
+recent %>% 
+  ggplot(aes(x = factor(season), y = ppg)) +
+  geom_jitter(alpha = 0.4, aes(color = position),
+              position=position_jitter(0.2)) +
+  labs(x = "Season", y = "Points Per Game") +
+  theme_bw() +
+  facet_wrap(~position) +
+  theme(legend.position = "none")
+```
+
+##### Season
+```{r, fig.align='center', message=FALSE, warning=FALSE}
+recent %>% 
+  ggplot(aes(x = factor(position), y = ppg)) +
+  geom_jitter(alpha = 0.4, aes(color = season),
+              position=position_jitter(0.2)) +
+  labs(x = "Position", y = "Points Per Game") +
+  theme_bw() +
+  facet_wrap(~season) +
+  theme(legend.position = "none")
+```
+
+
 ## Questions/Concerns
 
+1. How do I use BART in R? 
+1. Can you explain CATE/ what are rescources on CATE?

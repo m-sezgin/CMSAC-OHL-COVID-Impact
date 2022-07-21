@@ -1,0 +1,14 @@
+---
+title: "mid_check"
+output: html_document
+date: '2022-07-21'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+
+Hockey project

@@ -28,7 +28,7 @@ During 2020-2021, many hockey leagues (including NHL feeder leagues) had shorten
 ### Data
 
 ```{r data}
-ohl <- read_csv("../sams_ohl_data_request.csv")
+ohl <- read_csv("../../sams_ohl_data_request.csv")
 ohl_covid <- ohl %>%
   filter(season %in% c("2019-2020","2020-2021", "2021-2022"))
 ```
@@ -68,7 +68,7 @@ ohl_pm <- ohl %>%
   group_by(team_name, season) %>%
   arrange(team_name, season, desc(pm)) %>%
   mutate(pm_rank = 1:n(),
-         pm_relative = pm - mean(pm)/mean(pm)
+         pm_relative = pm - mean(pm)
   ) %>%
   ungroup()
 
@@ -230,11 +230,19 @@ ohl_filtered <- ohl_filtered %>%
   mutate(is_train = sample(rep(0:1, length.out = nrow(ohl_filtered))),
          ppg_alt = ppg_total + .001)
 
-ohl_glm <- glm(ppg_alt ~ position + plyr_quality + treatment + drafted + gp_total + age_continuous + season,
+ohl_glm <- glm(ppg_alt ~ position + pm_relative + treatment + drafted + gp_total + age_continuous + season,
                          data = ohl_filtered,
                          family = Gamma)
 plot(ohl_glm, which = c(1, 2))
 summary(ohl_glm)
+
+ohl_filtered <- ohl_filtered %>%
+  mutate(glm_resids = ohl_glm$residuals)
+
+ggplot(ohl_filtered, aes(x = pm_relative, y = glm_resids)) +
+  geom_point()
+ggplot(ohl_filtered, aes(x = age_continuous, y = glm_resids)) +
+  geom_point()
 ```
 
 Takeaways:
@@ -243,11 +251,16 @@ Takeaways:
 - **Note**: Tried to fit a GLM with interaction using the default Gamma link function (inverse), but it threw an error and said "no valid set of coefficients has been found: please supply starting values"
 
 ```{r}
-# ohl_glm_interaction <- glm(ppg_alt ~ position*plyr_quality + treatment*drafted + gp_total + plyr_quality*gp_total + plyr_quality*drafted + age_continuous*plyr_quality + season, 
-#                          data = ohl_filtered, 
-#                          family = Gamma)
-# plot(ohl_glm_interaction, which = c(1, 2))
-# summary(ohl_glm_interaction)
+ohl_glm_interaction <- glm(ppg_alt ~ position*pm_relative + treatment*drafted + gp_total + pm_relative*gp_total + pm_relative*drafted + age_continuous*pm_relative + season, 
+                          data = ohl_filtered, 
+                          family = Gamma)
+ plot(ohl_glm_interaction, which = c(1, 2))
+ summary(ohl_glm_interaction)
+ 
+# ohl_filtered <- ohl_filtered %>%
+#   mutate(glm_int_resids = ohl_glm_interaction$residuals)
+# ggplot(ohl_filtered, aes(x = age_continuous, y = glm_int_resids)) +
+#   geom_point()
 ```
 
 #### Interaction GLM using Gamma distribution with log link function

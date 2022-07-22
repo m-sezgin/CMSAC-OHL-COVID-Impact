@@ -374,7 +374,7 @@ summary(ohl_glm_interaction)
 
 #### Model Results
 
-\(\widehat{PPG + .001} = -5.983 + .602*forward + .00412*relative \hspace{.1 cm} PM + .0622*played \hspace{.1 cm} during \hspace{.1 cm} covid + .365*drafted + .0174* GP + .204*age + .0266*season + .000635*forward*relative \hspace{.1 cm} PM + .338*played \hspace{.1 cm} during \hspace{.1 cm} covid * drafted -.0000285*relative \hspace{.1 cm} PM*GP + .00570*relative \hspace{.1 cm} PM*drafted + .000470*relative \hspace{.1 cm} PM*age\)
+\(\widehat{PPG + .001} = -5.983 + .602*forward + .00412*relative \hspace{.1 cm} PM +\\ .0622*played \hspace{.1 cm} during \hspace{.1 cm} covid + .365*drafted + .0174* GP + .204*age \\ + .0266*season + .000635*forward*relative \hspace{.1 cm} PM \\+ .338*played \hspace{.1 cm} during \hspace{.1 cm} covid * drafted -.0000285*relative \hspace{.1 cm} PM*GP\\ + .00570*relative \hspace{.1 cm} PM*drafted + .000470*relative \hspace{.1 cm} PM*age\)
 
 Variables found to be significant in our model were position, relative plus-minus, drafted status, games played, and age at the \(\alpha = .001\) significance level. Additionally, the interaction of our treatment variable and drafted status was found to be significant at the \(\alpha = .05\) significance level. 
 

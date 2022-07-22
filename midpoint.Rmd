@@ -139,8 +139,7 @@ ohl_age <- ohl_trt %>%
   mutate(age = trunc((dob %--% as.Date(paste0(year, "-9-15"))) / years(1)),
          age_continuous = (dob %--% as.Date(paste0(year, "-09-15"))) / years(1)
   ) %>%
-  ungroup() #%>%
-  #filter(age %in% 16:22)
+  ungroup()
     
 # add player quality
 ohl_qlty <- ohl_age %>%
@@ -151,29 +150,14 @@ ohl_qlty <- ohl_age %>%
          pts_total = sum(pts)) %>%
   arrange(player_id, season, -plyr_quality) %>%
   filter(duplicated(player_id) == FALSE) %>%
-  ungroup()#%>%
-  # filter(ppg != 0) %>%
-  # mutate(log_ppg = log(ppg))
-
-# ohl_qlty <- ohl_age %>%
-#   left_join(plyr_quality, by = "player_id") %>%
-#   group_by(player_id, season) %>%
-#   summarize_at(vars(gp, pts), "sum") %>%
-#   group_by(player_id) %>% 
-#   mutate(ppg_total = pts/gp, count_seasons = n()) %>% 
-#   filter(count_seasons == 2) %>%
-#   ungroup()
+  ungroup()
 
 # were they drafted
 ohl_filtered <- ohl_qlty %>%
   mutate(drafted = !is.na(draft_year)) %>%
   select(season, player_id, treatment, first_name, last_name, position, plyr_quality, age, gp_total, pts_total, ppg_total, drafted, draft_year, round, overall_pick_num, age_continuous, pm_relative, pm_rank, pm)
 
-## Trying to combine players who played for two teams into one
-
-# combined <- ohl_filtered %>%
-  
-
+# just post-COVID stats
 ohl_treatment_21_22 <- ohl_filtered %>%
   filter(season == "2021-2022")
 ```
@@ -202,7 +186,7 @@ We are looking at data from the 2019-2020, 2020-2021, and 2021-2022 seasons for 
 
 - age (approximately the oldest a player was in a given season)
 
-- player quality approximated by ppg in pre-COVID season
+- player quality approximated by plus-minus (PM) relative to average team PM in pre-COVID season
 
 - whether a player was drafted (not totally up to date)
 
@@ -295,7 +279,7 @@ mosaicplot(table("Drafted" = ohl_filtered$drafted,
 # pm vs treatment
 ggplot(ohl_filtered, aes(x = pm_relative, color = treatment)) +
   geom_density() +
-  labs("Insignificant difference in relative plus minus for players who played during COVID season", x = "relative plus minus")
+  labs("Insignificant difference in relative PM for players who played during COVID season", x = "relative plus minus")
 # age vs treatment
 ggplot(ohl_filtered, aes(x = age, color = treatment)) +
   geom_density() +
@@ -303,7 +287,7 @@ ggplot(ohl_filtered, aes(x = age, color = treatment)) +
 # gp vs treatment
 ggplot(ohl_filtered, aes(x = gp_total, color = treatment)) +
   geom_density() +
-  labs("Insignificant difference in games played for players who played during COVID season", x = "Games Played")
+  labs("Players who played during COVID season generally played more games", x = "Games Played")
 ```
 
 ```{r}

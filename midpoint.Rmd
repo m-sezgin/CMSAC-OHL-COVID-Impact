@@ -226,13 +226,9 @@ recent %>%
 
 ## Exploratory Data Analysis
 
-<<<<<<< HEAD
-#### Points Per Game
-=======
 ### PPG {.tabset}
 
 #### Treatment vs PPG
->>>>>>> 95e1dca491f6f528efdd2749974608638ab105c9
 
 ```{r, fig.align='center', warning=FALSE, message=FALSE}
 # treatment vs ppg
@@ -244,7 +240,6 @@ ggplot(ohl_filtered, aes(x = ppg_total, color = treatment)) +
   theme_bw()
 
 ```
->>>>>>> 95e1dca491f6f528efdd2749974608638ab105c9
 
 #### Age vs PPG
 
@@ -257,7 +252,6 @@ ggplot(ohl_filtered, aes(x = pm_relative, y = ppg_total)) +
   geom_smooth(method = "lm") +
   theme_bw()
 ```
->>>>>>> 95e1dca491f6f528efdd2749974608638ab105c9
 
 #### GP vs PPG
 

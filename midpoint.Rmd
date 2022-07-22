@@ -62,6 +62,12 @@ recent <- recent %>%
   mutate(got_drafted = case_when(!is.na(draft_year) ~ 'Yes',
                                  TRUE ~ 'No'))
 
+# yes = only plays drafted before COVID
+recent2 <- recent %>% 
+  mutate(got_drafted = case_when(!is.na(draft_year) & draft_year < 2020
+                                 ~ 'Yes',
+                                 TRUE ~ 'No'))
+
 # make dataframe of drafted players
 drafted <- recent %>% 
   filter(!is.na(draft_year)) %>% 
@@ -399,14 +405,12 @@ Variables found to be significant in our model were position, relative plus-minu
 **What are the model assumptions for gamma regression?**
 </span>
 
-Our response variable approximating player performance was PPG, which is a simple measure that may not adequately capture all aspects of a player's performance. Though we control for position in our model, PPG will generally be higher for forwards than defensemen. Defensive performance is not well-approximated by PPG, and this measure would bias offensive defensemen as the best-performing defensemen. Additionally, good defensive forwards may be undervalued using this metric. A more nuanced measure that incorporates important defensive statistics like turnovers created, passes completed, shots blocked, etc. may better approximate player performance.
+Our response variable to approximate player performance was points per game. It is a simple measure that may not adequately capture all aspects of a player's performance. Though we control for position in our model, PPG will generally be higher for forwards than defensemen. Defensive performance is not well-approximated by PPG, and this measure would bias offensive defensemen as the best-performing. Additionally, good defensive forwards may be undervalued by this metric. A more nuanced measure that incorporates important defensive statistics like turnovers created, passes completed, shots blocked, etc. may better approximate player performance.
 
-We defined player quality in terms of relative plus minus given by \( PM_{relative} = PM_{player} - \mu_{team\hspace{.05cm}PM}\). Plus minus does not account for all of the statistics that might measure the quality of a player (shots blocked, turnovers created, passes completed, etc) and does not consider factors like sheltering. However, PM is one of the best options to approximate player quality given our limited dataset.
+We defined player quality in terms of relative plus-minus given by \( PM_{relative} = PM_{player} - \mu_{team\hspace{.05cm}PM}\). Plus-minus does not account for all of the statistics that might measure the quality of a player (shots blocked, turnovers created, passes completed, etc) and does not consider factors like sheltering. However, plus-minus is one of the best options to approximate player quality given our limited dataset.
 
-Our treatment variable was defined as players who participated in more than 10 games during the COVID season in a single league or tournament. We did not control for quality of league. 
-_Additionally, though typically only the best players are selected to play in championships/tournaments, many of them were not included as treated in our analysis because of their low game count. 
-Conversely, players who played only a few games in mediocre leagues may have been counted as treated._
-Players who played more than 10 games cumulatively across two or more different leagues would also not be considered treated, though they played a significant number of games. Future analysis could provide a more distinct view of the treatment variable in which both league quality and number of games played are controlled for.
+Our treatment variable was defined as players who participated in more than 10 games in a single league or tournament during the COVID season. We did not control for quality of league. Additionally, though typically only the best players are selected to play in championships/tournaments, many of them were not included as treated in our analysis because of their low game count. 
+Conversely, players who played only a few games in mediocre leagues may have been counted as treated. Players who totaled more than 10 games cumulatively across two or more different leagues would also not be considered treated, though they played a significant number of games. Future analysis could provide a more distinct view of the treatment variable in which league quality and number of games played are controlled for.
 
 Further, games played was a significant variable in our model, but we did not control for percentage of length of season. Both the 2020-2021 and 2021-2022 seasons were shortened due to the pandemic.
 
@@ -419,5 +423,5 @@ Further, games played was a significant variable in our model, but we did not co
 
 ### Acknowledgments
 
-Thank you to our advisor Dr. Sam Ventura (and assistant Dominic Ventura) and our professor, Dr. Ron Yurko. We would also like to thank our TAs, Nick Kissel, Meg Ellingwood, Wanshan Li, Kenta Takatsu, and YJ Choe. Lastly, thank you to Professor Ben Baumer, Smith College and Dr. Ryne Vankrevelen. We could not have completed this project without you all and we sincerely appreciate your help!
+Thank you to our advisor Dr. Sam Ventura (and assistant Dominic Ventura) and our professor, Dr. Ron Yurko. We would also like to thank our TAs, Nick Kissel, Meg Ellingwood, Wanshan Li, Kenta Takatsu, and YJ Choe. Lastly, thank you to Professor Ben Baumer, Smith College and Dr. Ryne Vankrevelen, Elon University. We could not have completed this project without you all and we sincerely appreciate your help!
 

@@ -47,7 +47,6 @@ library(kableExtra)
 # load the data
 library(readr)
 sams_ohl_data_request <- read_csv("sams_ohl_data_request.csv")
-View(sams_ohl_data_request)
 
 # filter years
 recent <- sams_ohl_data_request %>% 
@@ -186,7 +185,7 @@ We are looking at data from the 2019-2020, 2020-2021, and 2021-2022 seasons for 
 
 - points per game  (PPG) per season (combined if a player played for multiple teams in a season)
 
-- games played per season (combined if a player played for multiple teams in a season)
+- games played (GP) per season (combined if a player played for multiple teams in a season)
 
 - treatment (i.e. whether a player played more than 10 games during the COVID season)
 
@@ -227,7 +226,13 @@ recent %>%
 
 ## Exploratory Data Analysis
 
+<<<<<<< HEAD
 #### Points Per Game
+=======
+### PPG {.tabset}
+
+#### Treatment vs PPG
+>>>>>>> 95e1dca491f6f528efdd2749974608638ab105c9
 
 ```{r, fig.align='center', warning=FALSE, message=FALSE}
 # treatment vs ppg
@@ -238,22 +243,37 @@ ggplot(ohl_filtered, aes(x = ppg_total, color = treatment)) +
   scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
 
+```
+>>>>>>> 95e1dca491f6f528efdd2749974608638ab105c9
+
+#### Age vs PPG
+
+```{r}
 # age vs ppg
 ggplot(ohl_filtered, aes(x = pm_relative, y = ppg_total)) +
   geom_point(alpha = .5) +
-  labs(title = "Positive linear relationship between relative plus-minus and PPG",
-       x = "PM ") +
+  labs(title = "Positive linear relationship between relative PM and PPG",
+       x = "Relative PM") +
   geom_smooth(method = "lm") +
   theme_bw()
+```
+>>>>>>> 95e1dca491f6f528efdd2749974608638ab105c9
 
+#### GP vs PPG
+
+```{r}
 # gp vs ppg
 ggplot(ohl_filtered, aes(x = gp_total, y = ppg_total)) +
   geom_point(alpha = .5) +
   labs(title = "Positive non-linear relationship between relative games played and PPG",
-       x = "Games Played", 
+       x = "GP", 
        y = "PPG") +
   theme_bw()
+```
 
+#### Drafted vs PPG
+
+```{r}
 # drafted vs ppg
 ggplot(ohl_filtered) +
   geom_density(aes(x = ppg_total, color = drafted)) +
@@ -261,13 +281,21 @@ ggplot(ohl_filtered) +
        x = "PPG") +
   scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
+```
 
+#### PM vs PPG
+
+```{r}
 # pm vs ppg
 ggplot(ohl_filtered, aes(x = pm_relative, y = ppg_total)) +
   geom_point(alpha = .5) +
   labs(title = "Positive linear relationship between relative plus-minus and PPG") +
   theme_bw()
+```
 
+#### Position vs PPG
+
+```{r}
 # position vs ppg
 ggplot(ohl_filtered) +
   geom_density(aes(x = ppg_total, color = position)) +
@@ -275,7 +303,11 @@ ggplot(ohl_filtered) +
        x = "PPG") +
   scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
+```
 
+#### Season vs PPG
+
+```{r}
 # season vs ppg
 ggplot(ohl_filtered) +
   geom_density(aes(x = ppg_total, color = position)) +
@@ -285,8 +317,11 @@ ggplot(ohl_filtered) +
   theme_bw()
 ```
 
+### {-}
 
-#### Treatment
+### Treatment {.tabset}
+
+#### Drafted vs Treatment
 
 ```{r, fig.align='center'}
 # drafted status vs treatment
@@ -294,18 +329,33 @@ mosaicplot(table("Drafted" = ohl_filtered$drafted,
                  "Treatment" = ohl_filtered$treatment),
            main = "Drafted players more likely to have played during COVID",
            shade = TRUE)
+```
+
+#### PM vs Treatment
+
+```{r}
 # pm vs treatment
 ggplot(ohl_filtered, aes(x = pm_relative, color = treatment)) +
   geom_density() +
   labs("Insignificant difference in relative PM for players who played during COVID season", x = "relative plus minus") +
   scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
+```
+
+#### Age vs Treatment
+
+```{r}
 # age vs treatment
 ggplot(ohl_filtered, aes(x = age, color = treatment)) +
   geom_density() +
   labs("Insignificant difference in age for players who played during COVID season", x = "Age") +
   scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
+```
+
+#### GP vs Treatment
+
+```{r}
 # gp vs treatment
 ggplot(ohl_filtered, aes(x = gp_total, color = treatment)) +
   geom_density() +
@@ -313,6 +363,9 @@ ggplot(ohl_filtered, aes(x = gp_total, color = treatment)) +
   scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
 ```
+
+
+### {-}
 
 #### Points Per Game and Games Played
 
@@ -507,11 +560,11 @@ Initial model: ppg_alt ~ position * pm_relative + treatment * drafted + gp_total
 ```{r, fig.align = 'center'}
 ohl_filtered <- ohl_filtered %>%
   mutate(ppg_alt = ppg_total + .001)
-ohl_glm_interaction <- glm(ppg_alt ~ position*pm_relative + treatment*drafted + gp_total + pm_relative*gp_total + pm_relative*drafted + age_continuous*pm_relative + season, 
+ohl_glm_interaction <- glm(ppg_alt ~ position*pm_relative + treatment*drafted + drafted*season + gp_total + pm_relative*gp_total + pm_relative*drafted + age_continuous*pm_relative + season, 
                           data = ohl_filtered, 
                           family = Gamma(log))
-plot(ohl_glm_interaction)
-summary(ohl_glm_interaction)
+plot(ohl_glm_interaction, which = 1)
+#summary(ohl_glm_interaction)
 ```
 
 ## Discussion

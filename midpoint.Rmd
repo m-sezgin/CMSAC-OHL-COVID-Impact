@@ -59,6 +59,12 @@ recent <- recent %>%
   mutate(got_drafted = case_when(!is.na(draft_year) ~ 'Yes',
                                  TRUE ~ 'No'))
 
+# yes is only plays drafted before COVID
+recent2 <- recent %>% 
+  mutate(got_drafted = case_when(!is.na(draft_year) & draft_year < 2020
+                                 ~ 'Yes',
+                                 TRUE ~ 'No'))
+
 # make dataframe of drafted players
 drafted <- recent %>% 
   filter(!is.na(draft_year)) %>% 
@@ -159,7 +165,7 @@ Our dataset is comprised of players who played in the Ontario Hockey League (OHL
 
 ### Wrangling:
 
-**Filtering:**
+**Filtering (unless otherwise specified):**
 
 - 2019-2020 ("pre-COVID") and 2021-2022 ("post-COVID") seasons
 
@@ -180,6 +186,8 @@ Our dataset is comprised of players who played in the Ontario Hockey League (OHL
 - player quality approximated by plus-minus (PM) relative to average team PM in pre-COVID season
 
 - whether a player was drafted (not totally up to date)
+
+- all players includes any player with data from the 2019-2020, 2020-2021 and/or 2021-2022 seasons
 
 <span style="color: darkblue;">
 **Snippet of Raw Data:**
@@ -214,14 +222,16 @@ recent %>%
 
 #### Treatment vs PPG
 
-```{r}
+```{r, fig.align='center', warning=FALSE, message=FALSE}
 # treatment vs ppg
 ggplot(ohl_filtered, aes(x = ppg_total, color = treatment)) +
   geom_density() +
   labs(title = "Players who played during COVID season generally had higher PPG in\n2019-20 and 2021-22 seasons",
        x = "PPG",
        color = "COVID season") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
+
 ```
 
 #### Age vs PPG
@@ -258,6 +268,7 @@ ggplot(ohl_filtered) +
   labs(title = "PPG generally greater for forwards in 2019-20 and 2021-22 seasons",
        x = "PPG",
        color = "Drafted?") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
 ```
 
@@ -283,6 +294,7 @@ ggplot(ohl_filtered) +
   labs(title = "PPG generally greater for forwards in 2019-20 and 2021-22 seasons",
        x = "PPG",
        color = "Position") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
 ```
 
@@ -291,9 +303,11 @@ ggplot(ohl_filtered) +
 ```{r}
 # season vs ppg
 ggplot(ohl_filtered) +
-  geom_density(aes(x = ppg_total, color = position)) +
-  labs(title = "PPG generally greater for forwards in 2019-20 and 2021-22 season",
-       x = "PPG") +
+  geom_density(aes(x = ppg_total, color = season)) +
+  labs(title = "PPG in 2021-22 season generally higher than in 2019-2020 season",
+       x = "PPG",
+       color = "Season") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
 ```
 
@@ -303,10 +317,10 @@ ggplot(ohl_filtered) +
 
 #### Drafted vs Treatment
 
-```{r}
+```{r, fig.align='center'}
 # drafted status vs treatment
 mosaicplot(table("Drafted" = ohl_filtered$drafted,
-                 "COVID season" = ohl_filtered$treatment),
+                 "COVID Season" = ohl_filtered$treatment),
            main = "Drafted players more likely to have played during COVID",
            shade = TRUE)
 ```
@@ -317,9 +331,10 @@ mosaicplot(table("Drafted" = ohl_filtered$drafted,
 # pm vs treatment
 ggplot(ohl_filtered, aes(x = pm_relative, color = treatment)) +
   geom_density() +
-  labs("Insignificant difference in relative PM for players who played during COVID season", 
+  labs(title = "Insignificant difference in relative PM for players who played during COVID season", 
        x = "relative PM",
-       color = "COVID season") +
+       color = "COVID Season") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
 ```
 
@@ -329,9 +344,10 @@ ggplot(ohl_filtered, aes(x = pm_relative, color = treatment)) +
 # age vs treatment
 ggplot(ohl_filtered, aes(x = age, color = treatment)) +
   geom_density() +
-  labs("Insignificant difference in age for players who played during COVID season", 
+  labs(title = "Insignificant difference in age for players who played during COVID season", 
        x = "Age",
-       color = "COVID season") +
+       color = "COVID Season") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
 ```
 
@@ -341,9 +357,10 @@ ggplot(ohl_filtered, aes(x = age, color = treatment)) +
 # gp vs treatment
 ggplot(ohl_filtered, aes(x = gp_total, color = treatment)) +
   geom_density() +
-  labs("Players who played during COVID season generally played more games", 
+  labs(title = "Players who played during COVID season generally played more games", 
        x = "GP",
-       color = "Played during COVID season?") +
+       color = "COVID season") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
 ```
 
@@ -408,7 +425,7 @@ drafted %>%
   ggplot(aes(x = overall_pick_num, y = gp)) +
   geom_point(alpha = 0.5) +
   geom_smooth() +
-  labs(x = "Draft Pick Number", y = "Games Played") +
+  labs(x = "Draft Pick Number", y = "Games Played", caption = "Any player that was drafted, regardless of draft year.") +
   theme_bw()
 ```
 
@@ -623,5 +640,6 @@ Treatment Variable:
 
 ### Acknowledgments
 
-Thank you to our advisor Dr. Sam Ventura (and assistant Dominic Ventura) and our professor, Dr. Ron Yurko. We would also like to thank our TAs, Nick Kissel, Meg Ellingwood, Wanshan Li, Kenta Takatsu, and YJ Choe. Lastly, thank you to Professor Ben Baumer and Dr. Ryne Vankrevelen. We could not have completed this project without you all and we sincerely appreciate your help!
+Thank you to our advisor Dr. Sam Ventura (and assistant Dominic Ventura) and our professor, Dr. Ron Yurko. We would also like to thank our TAs, Nick Kissel, Meg Ellingwood, Wanshan Li, Kenta Takatsu, and YJ Choe. Lastly, thank you to Professor Ben Baumer, Smith College and Dr. Ryne Vankrevelen, Elon University. We could not have completed this project without you all and we sincerely appreciate your help!
 
+...

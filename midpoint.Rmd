@@ -46,8 +46,7 @@ library(kableExtra)
 ```{r data-jackie, message = FALSE, warning = FALSE}
 # load the data
 library(readr)
-sams_ohl_data_request <- read_csv("C:/Users/jacki/Desktop/REU/hockey/sams_ohl_data_request.csv")
-View(sams_ohl_data_request)
+sams_ohl_data_request <- read_csv("sams_ohl_data_request.csv")
 
 # filter years
 recent <- sams_ohl_data_request %>% 
@@ -180,7 +179,7 @@ We are looking at data from the 2019-2020, 2020-2021, and 2021-2022 seasons for 
 
 - points per game  (PPG) per season (combined if a player played for multiple teams in a season)
 
-- games played per season (combined if a player played for multiple teams in a season)
+- games played (GP) per season (combined if a player played for multiple teams in a season)
 
 - treatment (i.e. whether a player played more than 10 games during the COVID season)
 
@@ -219,56 +218,91 @@ recent %>%
 
 ## Exploratory Data Analysis
 
-#### PPG
+### PPG {.tabset}
+
+#### Treatment vs PPG
 
 ```{r}
 # treatment vs ppg
 ggplot(ohl_filtered, aes(x = ppg_total, color = treatment)) +
   geom_density() +
   labs(title = "Players who played during COVID season generally have higher PPG",
-       x = "PPG")
+       x = "PPG") +
+  theme_bw()
+```
 
+#### Age vs PPG
+
+```{r}
 # age vs ppg
 ggplot(ohl_filtered, aes(x = pm_relative, y = ppg_total)) +
   geom_point(alpha = .5) +
-  labs(title = "Positive linear relationship between relative plus-minus and PPG",
-       x = "PM ") +
-  geom_smooth(method = "lm")
+  labs(title = "Positive linear relationship between relative PM and PPG",
+       x = "Relative PM") +
+  geom_smooth(method = "lm") +
+  theme_bw()
+```
 
+#### GP vs PPG
+
+```{r}
 # gp vs ppg
 ggplot(ohl_filtered, aes(x = gp_total, y = ppg_total)) +
   geom_point(alpha = .5) +
   labs(title = "Positive non-linear relationship between relative games played and PPG",
-       x = "Games Played", 
+       x = "GP", 
        y = "PPG") +
   theme_bw()
+```
 
+#### Drafted vs PPG
+
+```{r}
 # drafted vs ppg
 ggplot(ohl_filtered) +
   geom_density(aes(x = ppg_total, color = drafted)) +
   labs(title = "PPG generally greater for forwards in 2019-20 and 2021-22 season",
-       x = "PPG")
+       x = "PPG") +
+  theme_bw()
+```
 
+#### PM vs PPG
+
+```{r}
 # pm vs ppg
 ggplot(ohl_filtered, aes(x = pm_relative, y = ppg_total)) +
   geom_point(alpha = .5) +
-  labs(title = "Positive linear relationship between relative plus-minus and PPG")
+  labs(title = "Positive linear relationship between relative plus-minus and PPG") +
+  theme_bw()
+```
 
+#### Position vs PPG
+
+```{r}
 # position vs ppg
 ggplot(ohl_filtered) +
   geom_density(aes(x = ppg_total, color = position)) +
   labs(title = "PPG generally greater for forwards in 2019-20 and 2021-22 season",
-       x = "PPG")
+       x = "PPG") +
+  theme_bw()
+```
 
+#### Season vs PPG
+
+```{r}
 # season vs ppg
 ggplot(ohl_filtered) +
   geom_density(aes(x = ppg_total, color = position)) +
   labs(title = "PPG generally greater for forwards in 2019-20 and 2021-22 season",
-       x = "PPG")
+       x = "PPG") +
+  theme_bw()
 ```
 
+### {-}
 
-#### Treatment
+### Treatment {.tabset}
+
+#### Drafted vs Treatment
 
 ```{r}
 # drafted status vs treatment
@@ -276,24 +310,39 @@ mosaicplot(table("Drafted" = ohl_filtered$drafted,
                  "Treatment" = ohl_filtered$treatment),
            main = "Drafted players more likely to have played during COVID",
            shade = TRUE)
+```
+
+#### PM vs Treatment
+
+```{r}
 # pm vs treatment
 ggplot(ohl_filtered, aes(x = pm_relative, color = treatment)) +
   geom_density() +
-  labs("Insignificant difference in relative PM for players who played during COVID season", x = "relative plus minus")
+  labs("Insignificant difference in relative PM for players who played during COVID season", x = "relative plus minus") +
+  theme_bw()
+```
+
+#### Age vs Treatment
+
+```{r}
 # age vs treatment
 ggplot(ohl_filtered, aes(x = age, color = treatment)) +
   geom_density() +
-  labs("Insignificant difference in age for players who played during COVID season", x = "Age")
+  labs("Insignificant difference in age for players who played during COVID season", x = "Age") +
+  theme_bw()
+```
+
+#### GP vs Treatment
+
+```{r}
 # gp vs treatment
 ggplot(ohl_filtered, aes(x = gp_total, color = treatment)) +
   geom_density() +
-  labs("Players who played during COVID season generally played more games", x = "Games Played")
+  labs("Players who played during COVID season generally played more games", x = "Games Played") +
+  theme_bw()
 ```
 
-```{r}
-
-```
-
+### {-}
 
 #### Points Per Game and Games Played
 
@@ -488,11 +537,11 @@ Initial model: ppg_alt ~ position * pm_relative + treatment * drafted + gp_total
 ```{r, fig.align = 'center'}
 ohl_filtered <- ohl_filtered %>%
   mutate(ppg_alt = ppg_total + .001)
-ohl_glm_interaction <- glm(ppg_alt ~ position*pm_relative + treatment*drafted + gp_total + pm_relative*gp_total + pm_relative*drafted + age_continuous*pm_relative + season, 
+ohl_glm_interaction <- glm(ppg_alt ~ position*pm_relative + treatment*drafted + drafted*season + gp_total + pm_relative*gp_total + pm_relative*drafted + age_continuous*pm_relative + season, 
                           data = ohl_filtered, 
                           family = Gamma(log))
-plot(ohl_glm_interaction)
-summary(ohl_glm_interaction)
+plot(ohl_glm_interaction, which = 1)
+#summary(ohl_glm_interaction)
 ```
 
 ## Discussion

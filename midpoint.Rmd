@@ -23,13 +23,15 @@ font-family: 'Source Sans Pro', sans-serif;
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Introduction 
+## Introduction 
 
 Project Motivation: Investigate the impact of pandemic restrictions on hockey player development.
 
-*   2020-2021 many leagues had a shortened season or no season
+*   In 2020-2021 many leagues had a shortened season or no season
 *   Players had to find new leagues and/or tournament
 *   Some players did not play that season
+
+We are looking at skaters who played in the OHL during the 2019-2020 and 2020-2021 seasons.
 
 ```{r load-packages, include = FALSE}
 # load the packages
@@ -65,6 +67,13 @@ recent <- recent %>%
 drafted <- recent %>% 
   filter(!is.na(draft_year)) %>% 
   filter(draft_year < 2020)
+
+rank2 <- recent %>%
+  filter(league == "OHL") %>%
+  group_by(team_name, season) %>%
+  arrange(team_name, season, desc(pm)) %>%
+  mutate(rank = 1:n()) %>%
+  ungroup()
 ```
 
 ```{r data-michele, message = FALSE, warning = FALSE}
@@ -144,12 +153,12 @@ ohl_treatment_21_22 <- ohl_filtered %>%
   filter(season == "2021-2022")
 ```
 
-# Data
+## Data
 
 We are looking at data from the 2019-2020, 2020-2021, and 2021-2022 seasons for junior leagues across Canada and Europe.
 
 <span style="color: darkblue;">
-**Raw Data:**
+**Snippet of Raw Data:**
 </span>
 
 ```{r, message = FALSE, warning = FALSE}
@@ -175,7 +184,7 @@ recent %>%
   kable_styling("striped")
 ```
 
-# Exploratory Data Analysis
+## Exploratory Data Analysis
 
 <span style="color: darkblue;">
 **Points Per Game and Games Played**
@@ -186,28 +195,204 @@ ppg_ohl <- recent %>%
   filter(league == "OHL") %>%
   filter(ppg > 0) %>% 
   ggplot(aes(x = gp, y = ppg)) +
-  geom_point(aes(color = got_drafted), alpha = 0.3) +
+  geom_point(aes(color = got_drafted), alpha = 0.5, size = 1) +
   labs(title = "OHL", x = "Games Played", y = "Points Per Game",
        color = "Drafted Before \n 2020-2021 Season") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw() +
   theme(legend.position = "none")
 ppg_all <- recent %>% 
   filter(ppg > 0) %>% 
   ggplot(aes(x = gp, y = ppg)) +
-  geom_point(aes(color = got_drafted), alpha = 0.3) +
+  geom_point(aes(color = got_drafted), alpha = 0.5, size =1) +
   labs(title = "All Leagues", x = "Games Played", y = "Points Per Game",
        color = "Drafted Before \n 2020-2021 Season") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
 ppg_ohl + ppg_all
 ```
 
-### Methods
+> People that played less games had a higher points per game than those with greater game counts.
 
-Before performing causal analysis, we wanted to determine whether playing during the COVID season had a significant effect on PPG when controlling for variables (and interactions between variables) found to be associated with the response through EDA. Because PPG is right skewed and bounded between 0 and some positive number, we know the assumptions of  We To model the relationship 
+<center>
+<style>
+div.blue { background-color:#e6f0ff; border-radius: 5px; padding: 20px;}
+</style>
+<div class = "blue">
+_Draft Status "yes" refers to players drafted **before** the 2020-2021 season._
+</div>
+</center>
 
-```{r}
+<span style="color: darkblue;">
+**Seasons Played by Draft Status**
+</span>
 
+
+```{r, fig.align = 'center'}
+mosaicplot(table(recent$got_drafted, recent$season), shade = TRUE,
+           main = element_blank())
 ```
 
+> During the 2020-2021 season the majority of players had already previously been drafted.
+> The following season was dominated by undrafted players in this dataset. 
 
+## Possible Confounding Variables:
+
+<span style="color: darkblue;">
+**Draft Pick Number and Games Played**
+</span>
+
+```{r, fig.align = 'center', message = FALSE, warning = FALSE, fig.width=5}
+# draft pick number on x-axis, gp on y-axis
+drafted %>% 
+  ggplot(aes(x = overall_pick_num, y = gp)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth() +
+  labs(x = "Draft Pick Number", y = "Games Played") +
+  theme_bw()
+```
+
+> Players picked later in the draft recorded more games. 
+
+<span style="color: darkblue;">
+**Draft Pick Status and Games Played**
+</span>
+
+```{r,fig.align = 'center', message=FALSE, warning=FALSE, fig.width=10}
+recent %>% 
+  ggplot(aes(x = gp)) +
+  geom_density(aes(color = factor(got_drafted)), alpha = 0.3) +
+  labs(x = "Games Played", y = "Density", color = "Draft Status",
+       caption = "All players.") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
+  theme_bw() +
+  facet_wrap(~season)
+```
+
+> According to this graph, during the 2020-2021 season drafted players only played slightly more games than undrafted players. In the 2021-2022 undrafted players particpated in more games. 
+
+#### Plus-Minus {.tabset}
+
+In the following graphs, the blue line acts as a reference line at y = 0. The gold line is the team's average plus-minus. 
+
+##### Highest Player
+
+```{r, fig.align = 'center'}
+rank2 %>% 
+  filter(team_name == "Ottawa 67's") %>%
+  ggplot(aes(x = player_id, y = pm)) +
+  geom_point() +
+  geom_hline(aes(yintercept = mean(pm)), color = "darkgoldenrod3") +
+  geom_hline(aes(yintercept = 0), color = "royalblue3") +
+  labs(title = "Ottawa 67's", subtitle = "Highest Player Plus-Minus", 
+       y = "Plus-Minus") +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        axis.title.x = element_blank()) +
+  facet_grid(~season)
+```
+
+The Ottawa 67's contain the individual with the highest plus-minus in the Ontario Hockey League. Overall the team had much lower numbers in the 2021-2022 season. A singular player was not below the mean. 
+
+##### Lowest Player
+
+```{r, fig.align = 'center'}
+rank2 %>% 
+  filter(team_name == "North Bay Battalion") %>%
+  ggplot(aes(x = player_id, y = pm)) +
+  geom_point() +
+  geom_hline(aes(yintercept = mean(pm)), color = "darkgoldenrod3") +
+  geom_hline(aes(yintercept = 0), color = "royalblue3") +
+  labs(title = "North Bay Battalion", subtitle = "Lowest Player Plus-Minus", 
+       y = "Plus-Minus") +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        axis.title.x = element_blank()) +
+  facet_grid(~season)
+```
+
+The North Bay Battalion possess the player with the lowest plus-minus in the Ontario Hockey League. This team greatly improved in the later season. The majority switched to above the mean, opposite of the previous season. 
+
+##### Median Player
+
+```{r, fig.align = 'center'}
+rank2 %>% 
+  filter(team_name == "Hamilton Bulldogs") %>%
+  ggplot(aes(x = player_id, y = pm)) +
+  geom_point() +
+  geom_hline(aes(yintercept = mean(pm)), color = "darkgoldenrod3") +
+  geom_hline(aes(yintercept = 0), color = "royalblue3") +
+  labs(title = "Hamilton Bulldogs", subtitle = "Median Player Plus-Minus", 
+       y = "Plus-Minus") +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        axis.title.x = element_blank()) +
+  facet_grid(~season)
+```
+
+The mean plus-minus across the OHL is -1. The Hamilton Bulldogs is one of the teams with the highest number of players with that score. This graph looks highly similar to the North Bay Battalion.
+
+##### Teams
+
+```{r, message = FALSE, fig.align = 'center'}
+teampm <- recent %>%
+  filter(league == "OHL") %>%
+  group_by(team_name, season) %>%
+  arrange(team_name, season, desc(pm)) %>%
+  summarize(team_pm = mean(pm))
+teampm %>%
+  ggplot(aes(x = team_name, y = team_pm)) +
+  geom_point() +
+  geom_hline(aes(yintercept = mean(team_pm)), color = "darkgoldenrod3") +
+  geom_hline(aes(yintercept = 0), color = "royalblue3") +
+  labs(title = "Team Plus-Minus", y = "Plus-Minus") +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        axis.title.x = element_blank()) +
+  facet_grid(~season)
+```
+
+The distributions of team plus-minus scores in the 2019-2020 and 2021-2022 are alike. 
+
+#### {-}
+
+### Methods
+
+Before performing causal analysis, we wanted to determine whether playing during the COVID season had a significant effect on PPG when controlling for variables (and interactions between variables) suspected to be associated with the response through EDA. Because PPG is right skewed and bounded between 0 and some positive number, the assumptions of ordinary least squares regression are not met, and we performed Gamma regression to more accurately model the relationship between our response and explanatory variables.
+
+```{r}
+ohl_filtered <- ohl_filtered %>%
+  mutate(ppg_alt = ppg_total + .001)
+ohl_glm_interaction <- glm(ppg_alt ~ position*pm_relative + treatment*drafted + gp_total + pm_relative*gp_total + pm_relative*drafted + age_continuous*pm_relative + season, 
+                          data = ohl_filtered, 
+                          family = Gamma(log))
+plot(ohl_glm_interaction)
+summary(ohl_glm_interaction)
+```
+
+### Discussion
+
+#### Model Results
+
+\(\widehat{PPG + .001} = -5.983 + .602*forward + .00412*relative \hspace{.1 cm} PM + .0622*played \hspace{.1 cm} during \hspace{.1 cm} covid + .365*drafted + .0174* GP + .204*age + .0266*season + .000635*forward*relative \hspace{.1 cm} PM + .338*played \hspace{.1 cm} during \hspace{.1 cm} covid * drafted -.0000285*relative \hspace{.1 cm} PM*GP + .00570*relative \hspace{.1 cm} PM*drafted + .000470*relative \hspace{.1 cm} PM*age\)
+
+Variables found to be significant in our model were position, relative plus-minus, drafted status, games played, and age at the \(\alpha = .001\) significance level. Additionally, the interaction of our treatment variable and drafted status was found to be significant at the \(\alpha = .05\) significance level. 
+
+#### Limitations
+
+What are the model assumptions for gamma regression?? 
+
+Our response variable approximating player performance was PPG, which is a simple measure that may not adequately capture all aspects of a player's performance. Though we control for position in our model, PPG will generally be higher for forwards than defensemen. Defensive performance is not well-approximated by PPG, and this measure would bias offensive defensemen as the best-performing defensemen. Additionally, good defensive forwards may be undervalued using this metric. A more nuanced measure that incorporates important defensive statistics like turnovers created, passes completed, shots blocked, etc may better approximate player performance.
+
+We defined player quality in terms of relative plus minus given by \( PM_{relative} = PM_{player} - \mu_{team\hspace{.05cm}PM}\). Plus minus does not account for all of the statistics that might measure the quality of a player (shots blocked, turnovers created, passes completed, etc) and does not account for factors like sheltering. However, PM is one of the best options to approximate player quality given our limited dataset.
+
+Regarding our treatment variable, playing during COVID was defined as players who played more than 10 games during the COVID season in a single league or tournament. We did not control for quality of league. Additionally, though typically only the best players are selected to play in championships/tournaments, many of those who played in championships/tournament were not counted as treated in our analysis because they did not play many games in these tournaments. Conversely, players who played only a few games in mediocre leagues may have been counted as treated. Players who played more than 10 games cumulatively across two or more different leagues would also not be considered treated, though they played a significant number of games. Future analysis could provide a more nuanced view of the treatment variable in which both league quality and number of games played are controlled for.
+
+Further, games played was a significant variable in our model, but we did not control for percentage of season played during the 2019-2020 season, which was cut short due to the COVID-19 pandemic.
+
+Future work will include redefining/tweaking our treatment and response variables and performing causal analysis focused on using BART and propensity scores to estimate the causal effect of our treatment.
+
+### Acknowledgments
+
+Thank you to our advisor Sam Ventura (and assistant Dominic Ventura) and our professor, Ron Yurko. We would also like to thank our TAs, Nick Kissel, Meg Ellingwood, Wanshan Li, Kenta Takatsu, and YJ Choe. Lastly, thank you to Professor Ben Baumer, Smith College and [Jackie insert people here]. We could not have completed this project without you all and we sincerely appreciate all of your help!
 

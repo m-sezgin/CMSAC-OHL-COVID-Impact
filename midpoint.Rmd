@@ -23,11 +23,11 @@ font-family: 'Source Sans Pro', sans-serif;
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Introduction 
+## Introduction 
 
 Project Motivation: Investigate the impact of pandemic restrictions on hockey player development.
 
-*   2020-2021 many leagues had a shortened season or no season
+*   In 2020-2021 many leagues had a shortened season or no season
 *   Players had to find new leagues and/or tournament
 *   Some players did not play that season
 
@@ -64,6 +64,13 @@ recent <- recent %>%
 drafted <- recent %>% 
   filter(!is.na(draft_year)) %>% 
   filter(draft_year < 2020)
+
+rank2 <- recent %>%
+  filter(league == "OHL") %>%
+  group_by(team_name, season) %>%
+  arrange(team_name, season, desc(pm)) %>%
+  mutate(rank = 1:n()) %>%
+  ungroup()
 ```
 
 ```{r data-michele, message = FALSE, warning = FALSE}
@@ -156,12 +163,12 @@ ohl_treatment_21_22 <- ohl_filtered %>%
   filter(season == "2021-2022")
 ```
 
-# Data
+## Data
 
 We are looking at data from the 2019-2020, 2020-2021, and 2021-2022 seasons for junior leagues across Canada and Europe.
 
 <span style="color: darkblue;">
-**Raw Data:**
+**Snippet of Raw Data:**
 </span>
 
 ```{r, message = FALSE, warning = FALSE}
@@ -187,7 +194,7 @@ recent %>%
   kable_styling("striped")
 ```
 
-# Exploratory Data Analysis
+## Exploratory Data Analysis
 
 <span style="color: darkblue;">
 **Points Per Game and Games Played**
@@ -198,19 +205,166 @@ ppg_ohl <- recent %>%
   filter(league == "OHL") %>%
   filter(ppg > 0) %>% 
   ggplot(aes(x = gp, y = ppg)) +
-  geom_point(aes(color = got_drafted), alpha = 0.3) +
+  geom_point(aes(color = got_drafted), alpha = 0.5, size = 1) +
   labs(title = "OHL", x = "Games Played", y = "Points Per Game",
        color = "Drafted Before \n 2020-2021 Season") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw() +
   theme(legend.position = "none")
 ppg_all <- recent %>% 
   filter(ppg > 0) %>% 
   ggplot(aes(x = gp, y = ppg)) +
-  geom_point(aes(color = got_drafted), alpha = 0.3) +
+  geom_point(aes(color = got_drafted), alpha = 0.5, size =1) +
   labs(title = "All Leagues", x = "Games Played", y = "Points Per Game",
        color = "Drafted Before \n 2020-2021 Season") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
 ppg_ohl + ppg_all
 ```
+
+> People that played less games had a higher points per game than those with greater game counts.
+
+<center>
+<style>
+div.blue { background-color:#e6f0ff; border-radius: 5px; padding: 20px;}
+</style>
+<div class = "blue">
+_Draft Status "yes" refers to players drafted **before** the 2020-2021 season._
+</div>
+</center>
+
+<span style="color: darkblue;">
+**Seasons Played by Draft Status**
+</span>
+
+
+```{r, fig.align = 'center'}
+mosaicplot(table(recent$got_drafted, recent$season), shade = TRUE,
+           main = element_blank())
+```
+
+> During the 2020-2021 season the majority of players had already previously been drafted.
+> The following season was dominated by undrafted players in this dataset. 
+
+## Possible Confounding Variables:
+
+<span style="color: darkblue;">
+**Draft Pick Number and Games Played**
+</span>
+
+```{r, fig.align = 'center', message = FALSE, warning = FALSE, fig.width=5}
+# draft pick number on x-axis, gp on y-axis
+drafted %>% 
+  ggplot(aes(x = overall_pick_num, y = gp)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth() +
+  labs(x = "Draft Pick Number", y = "Games Played") +
+  theme_bw()
+```
+
+> Players picked later in the draft recorded more games. 
+
+<span style="color: darkblue;">
+**Draft Pick Status and Games Played**
+</span>
+
+```{r,fig.align = 'center', message=FALSE, warning=FALSE, fig.width=10}
+recent %>% 
+  ggplot(aes(x = gp)) +
+  geom_density(aes(color = factor(got_drafted)), alpha = 0.3) +
+  labs(x = "Games Played", y = "Density", color = "Draft Status",
+       caption = "All players.") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
+  theme_bw() +
+  facet_wrap(~season)
+```
+
+> According to this graph, during the 2020-2021 season drafted players only played slightly more games than undrafted players. In the 2021-2022 undrafted players particpated in more games. 
+
+#### Plus-Minus {.tabset}
+
+In the following graphs, the blue line acts as a reference line at y = 0. The gold line is the team's average plus-minus. 
+
+##### Highest Player
+
+```{r, fig.align = 'center'}
+rank2 %>% 
+  filter(team_name == "Ottawa 67's") %>%
+  ggplot(aes(x = player_id, y = pm)) +
+  geom_point() +
+  geom_hline(aes(yintercept = mean(pm)), color = "darkgoldenrod3") +
+  geom_hline(aes(yintercept = 0), color = "royalblue3") +
+  labs(title = "Ottawa 67's", subtitle = "Highest Player Plus-Minus", 
+       y = "Plus-Minus") +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        axis.title.x = element_blank()) +
+  facet_grid(~season)
+```
+
+The Ottawa 67's contain the individual with the highest plus-minus in the Ontario Hockey League. Overall the team had much lower numbers in the 2021-2022 season. A singular player was not below the mean. 
+
+##### Lowest Player
+
+```{r, fig.align = 'center'}
+rank2 %>% 
+  filter(team_name == "North Bay Battalion") %>%
+  ggplot(aes(x = player_id, y = pm)) +
+  geom_point() +
+  geom_hline(aes(yintercept = mean(pm)), color = "darkgoldenrod3") +
+  geom_hline(aes(yintercept = 0), color = "royalblue3") +
+  labs(title = "North Bay Battalion", subtitle = "Lowest Player Plus-Minus", 
+       y = "Plus-Minus") +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        axis.title.x = element_blank()) +
+  facet_grid(~season)
+```
+
+The North Bay Battalion possess the player with the lowest plus-minus in the Ontario Hockey League. This team greatly improved in the later season. The majority switched to above the mean, opposite of the previous season. 
+
+##### Median Player
+
+```{r, fig.align = 'center'}
+rank2 %>% 
+  filter(team_name == "Hamilton Bulldogs") %>%
+  ggplot(aes(x = player_id, y = pm)) +
+  geom_point() +
+  geom_hline(aes(yintercept = mean(pm)), color = "darkgoldenrod3") +
+  geom_hline(aes(yintercept = 0), color = "royalblue3") +
+  labs(title = "Hamilton Bulldogs", subtitle = "Median Player Plus-Minus", 
+       y = "Plus-Minus") +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        axis.title.x = element_blank()) +
+  facet_grid(~season)
+```
+
+The mean plus-minus across the OHL is -1. The Hamilton Bulldogs is one of the teams with the highest number of players with that score. This graph looks highly similar to the North Bay Battalion.
+
+##### Teams
+
+```{r, message = FALSE, fig.align = 'center'}
+teampm <- recent %>%
+  filter(league == "OHL") %>%
+  group_by(team_name, season) %>%
+  arrange(team_name, season, desc(pm)) %>%
+  summarize(team_pm = mean(pm))
+teampm %>%
+  ggplot(aes(x = team_name, y = team_pm)) +
+  geom_point() +
+  geom_hline(aes(yintercept = mean(team_pm)), color = "darkgoldenrod3") +
+  geom_hline(aes(yintercept = 0), color = "royalblue3") +
+  labs(title = "Team Plus-Minus", y = "Plus-Minus") +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        axis.title.x = element_blank()) +
+  facet_grid(~season)
+```
+
+The distributions of team plus-minus scores in the 2019-2020 and 2021-2022 are alike. 
+
+#### {-}
+
 
 

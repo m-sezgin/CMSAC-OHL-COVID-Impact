@@ -1,0 +1,139 @@
+---
+title: "Lab Name"
+author: "Author Name"
+date: "`r Sys.Date()`"
+output: openintro::lab_report
+---
+
+```{r load-packages, message=FALSE}
+library(tidyverse)
+library(openintro)
+```
+
+### Exercise 1
+
+Insert any text here.
+
+```{r code-chunk-label}
+# Rethink data
+
+ohl <- read_csv("../sams_ohl_data_request.csv")
+
+# Create df of players who played during covid w total gp and if they played championship
+ohl_treatment_prep <- ohl %>%
+  filter(season == "2020-2021") %>%
+  group_by(player_id) %>%
+  mutate(gp_covid = sum(gp),
+         championship = ifelse(league %in% c("WC","WJC-18", "WJC-20"), TRUE, FALSE)) %>%
+  ungroup() %>%
+  select(player_id, gp_covid, championship) %>%
+  filter(duplicated(player_id) == FALSE)
+
+# Compute player quality vars using pm
+ohl_pm <- ohl %>%
+  filter(season == "2019-2020", league == "OHL") %>%
+  group_by(team_name) %>%
+  arrange(team_name, desc(pm)) %>%
+  mutate(pm_rank = 1:n(),
+         pm_relative = pm - mean(pm)
+  ) %>%
+  ungroup() %>%
+  select(player_id, team_name, pm_rank, pm_relative)
+
+# We need to check that each player played in the OHL in 2019-2020 and 2021-2022
+ohl_szn <- ohl %>%
+  filter(season %in% c("2019-2020", "2021-2022"), league == "OHL") %>%
+  group_by(player_id) %>%
+  mutate(played_2019 = season == "2019-2020",
+         played_2021 = season == "2021-2022",
+         played_both_szn = sum(played_2019) & sum(played_2021)) %>%
+  ungroup() %>%
+  filter(played_both_szn == TRUE)
+  
+ohl_21_22_ppg <- ohl_szn %>%
+  filter(season == "2021-2022") %>%
+  group_by(player_id) %>%
+  filter(duplicated(player_id) == FALSE) %>%
+  mutate(ppg_21_22 = sum(pts)/sum(gp)) %>%
+  select(player_id, ppg_21_22)
+
+# Add treatment vars and pm
+ohl_treatment <- ohl_szn %>%
+  filter(season == "2019-2020") %>%
+  left_join(ohl_treatment_prep, by = "player_id") %>%
+  left_join(ohl_pm, by = c("player_id", "team_name")) %>%
+  replace_na(list(gp_covid = 0, championship = FALSE))
+
+# add age variable
+ohl_age <- ohl_treatment %>%
+  group_by(player_id) %>%
+  mutate(year = strsplit(season, "-")[[1]][1]) %>%
+  mutate(age = trunc((dob %--% as.Date(paste0(year, "-9-15"))) / years(1)),
+         age_continuous = (dob %--% as.Date(paste0(year, "-09-15"))) / years(1)
+  ) %>%
+  ungroup()
+
+# summarizing variables, adding player performance as ppg
+ohl_performance <- ohl_age %>%
+  group_by(player_id) %>%
+  mutate(ppg_19_20 = sum(pts)/sum(gp),
+         gp_19_20 = sum(gp),
+         pts_19_20 = sum(pts),
+         pm_relative_19_20 = mean(pm_relative),
+         pm_rank_19_20 = trunc(mean(pm_rank)),
+         pm_19_20 = pm,
+         treatment = ifelse(gp_covid > 0, TRUE, FALSE)
+  ) %>%
+  arrange(player_id, season) %>%
+  filter(duplicated(player_id) == FALSE) %>%
+  ungroup()
+
+# were they drafted?
+ohl_drafted <- ohl_performance %>%
+  mutate(drafted = !is.na(draft_year))
+
+# add 2021 ppg
+
+ohl_filtered <- ohl_drafted %>%
+  left_join(ohl_21_22_ppg, by = "player_id")
+
+# clean up
+ohl_filtered <- ohl_filtered %>%
+  select(season, player_id, championship, gp_19_20, first_name, last_name, position, age, gp_19_20, pts_19_20, ppg_19_20, drafted, draft_year, round, overall_pick_num, age_continuous, pm_relative_19_20, pm_rank_19_20, pm_19_20, treatment, ppg_21_22, gp_covid)
+```
+
+```{r}
+ggplot(ohl_filtered, aes(x = age_continuous, color = drafted)) +
+  geom_density()
+```
+
+
+### Exercise 2
+
+```{r}
+ohl_mlr <- lm(ppg_21_22 ~ position + ppg_19_20 + championship + drafted + gp_19_20 + age_continuous, data = ohl_filtered)
+plot(ohl_mlr, which = 1)
+summary(ohl_mlr)
+```
+
+
+```{r}
+ohl_mlr_interaction <- lm(ppg_21_22 ~ position*ppg_19_20 + drafted*championship + gp_19_20*ppg_19_20 + age_continuous*ppg_19_20 + ppg_19_20*championship + ppg_19_20*drafted + drafted*age_continuous, data = ohl_filtered)
+plot(ohl_mlr_interaction, which = 1)
+summary(ohl_mlr_interaction)
+```
+
+
+```{r}
+ohl_filtered <- ohl_filtered %>%
+  mutate(ppg_alt = ppg_total + .001)
+ohl_glm_interaction <- glm(ppg_alt ~ position*pm_relative + gp_covid*drafted + drafted*season + gp_total + pm_relative*gp_total + pm_relative*drafted + age_continuous*pm_relative + season + championship, 
+                          data = ohl_filtered, 
+                          family = Gamma(log))
+plot(ohl_glm_interaction, which = 1)
+summary(ohl_glm_interaction)
+```
+
+
+...
+

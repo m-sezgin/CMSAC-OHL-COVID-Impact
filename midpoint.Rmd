@@ -394,7 +394,6 @@ ppg_ohl + ppg_all
 People that played less games had a higher points per game than those with greater game counts.
 </span>
 
-
 <center>
 <style>
 div.blue { background-color:#e6f0ff; border-radius: 5px; padding: 20px;}

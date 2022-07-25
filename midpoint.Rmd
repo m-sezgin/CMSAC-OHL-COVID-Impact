@@ -20,18 +20,16 @@ font-family: 'Source Sans Pro', sans-serif;
 </style>
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
 ```
 
 ## Introduction 
 
 Project Motivation: Investigate the impact of pandemic restrictions on hockey player development.
 
-*   In 2020-2021 many leagues had a shortened season or no season
+*   In 2020-2021 many junior/NHL-feeder leagues had a shortened season or no season
 *   Players had to find new leagues and/or tournament
 *   Some players did not play that season
-
-We are looking at skaters who played in the OHL during the 2019-2020 and 2020-2021 seasons.
 
 ```{r load-packages, include = FALSE}
 # load the packages
@@ -107,12 +105,6 @@ plyr_quality <- ohl %>%
   ungroup() %>%
   select(player_id, plyr_quality)
 
-# View(plyr_quality %>%
-#   filter(duplicated(plyr_quality$player_id) == TRUE))
-# ## need to deal with duplicate players/rows
-# View(ohl_filtered %>%
-#   filter(duplicated(ohl_filtered$player_id) == TRUE))
-
 ohl_pm <- ohl %>%
   filter(season %in% c("2019-2020", "2021-2022"), league == "OHL") %>%
   group_by(team_name, season) %>%
@@ -159,7 +151,7 @@ ohl_qlty <- ohl_age %>%
 
 # were they drafted
 ohl_filtered <- ohl_qlty %>%
-  mutate(drafted = !is.na(draft_year)) %>%
+  mutate(drafted = ifelse(!is.na(draft_year) == TRUE, "Yes", "No")) %>%
   select(season, player_id, treatment, first_name, last_name, position, plyr_quality, age, gp_total, pts_total, ppg_total, drafted, draft_year, round, overall_pick_num, age_continuous, pm_relative, pm_rank, pm)
 
 # just post-COVID stats
@@ -169,7 +161,7 @@ ohl_treatment_21_22 <- ohl_filtered %>%
 
 ## Data
 
-We are looking at data from the 2019-2020, 2020-2021, and 2021-2022 seasons for junior leagues across Canada and Europe.
+Our dataset is comprised of players who played in the Ontario Hockey League (OHL) during the 2019-2020, 2020-2021, and 2021-2022 seasons. The dataset also includes information regarding other leagues they have played in at during their career. There is information regarding season, team, league, points, games played, position, and drafted status. Each row is a player on a certain team in a specific season.
 
 ### Wrangling:
 
@@ -234,8 +226,9 @@ recent %>%
 # treatment vs ppg
 ggplot(ohl_filtered, aes(x = ppg_total, color = treatment)) +
   geom_density() +
-  labs(title = "Players who played during COVID season generally have higher PPG",
-       x = "PPG") +
+  labs(title = "Players who played during COVID season generally had higher PPG in\n2019-20 and 2021-22 seasons",
+       x = "PPG",
+       color = "COVID season") +
   scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
 
@@ -245,10 +238,11 @@ ggplot(ohl_filtered, aes(x = ppg_total, color = treatment)) +
 
 ```{r}
 # age vs ppg
-ggplot(ohl_filtered, aes(x = pm_relative, y = ppg_total)) +
+ggplot(ohl_filtered, aes(x = age, y = ppg_total)) +
   geom_point(alpha = .5) +
-  labs(title = "Positive linear relationship between relative PM and PPG",
-       x = "Relative PM") +
+  labs(title = "Positive linear relationship between PPG and Age in \n2019-20 and 2021-22 seasons",
+       x = "Age",
+       y = "PPG") +
   geom_smooth(method = "lm") +
   theme_bw()
 ```
@@ -259,7 +253,7 @@ ggplot(ohl_filtered, aes(x = pm_relative, y = ppg_total)) +
 # gp vs ppg
 ggplot(ohl_filtered, aes(x = gp_total, y = ppg_total)) +
   geom_point(alpha = .5) +
-  labs(title = "Positive non-linear relationship between relative games played and PPG",
+  labs(title = "Positive non-linear relationship between PPG and GP in \n2019-20 and 2021-22 seasons",
        x = "GP", 
        y = "PPG") +
   theme_bw()
@@ -271,8 +265,9 @@ ggplot(ohl_filtered, aes(x = gp_total, y = ppg_total)) +
 # drafted vs ppg
 ggplot(ohl_filtered) +
   geom_density(aes(x = ppg_total, color = drafted)) +
-  labs(title = "PPG generally greater for forwards in 2019-20 and 2021-22 season",
-       x = "PPG") +
+  labs(title = "PPG generally greater for forwards in 2019-20 and 2021-22 seasons",
+       x = "PPG",
+       color = "Drafted?") +
   scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
 ```
@@ -283,7 +278,10 @@ ggplot(ohl_filtered) +
 # pm vs ppg
 ggplot(ohl_filtered, aes(x = pm_relative, y = ppg_total)) +
   geom_point(alpha = .5) +
-  labs(title = "Positive linear relationship between relative plus-minus and PPG") +
+  labs(title = "Positive linear relationship between PPG and relative PM in \n2019-20 and 2021-22 seasons",
+       x = "Relative PM",
+       y = "PPG") +
+  geom_smooth(method = "lm") +
   theme_bw()
 ```
 
@@ -293,8 +291,9 @@ ggplot(ohl_filtered, aes(x = pm_relative, y = ppg_total)) +
 # position vs ppg
 ggplot(ohl_filtered) +
   geom_density(aes(x = ppg_total, color = position)) +
-  labs(title = "PPG generally greater for forwards in 2019-20 and 2021-22 season",
-       x = "PPG") +
+  labs(title = "PPG generally greater for forwards in 2019-20 and 2021-22 seasons",
+       x = "PPG",
+       color = "Position") +
   scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
 ```
@@ -304,9 +303,10 @@ ggplot(ohl_filtered) +
 ```{r}
 # season vs ppg
 ggplot(ohl_filtered) +
-  geom_density(aes(x = ppg_total, color = position)) +
-  labs(title = "PPG generally greater for forwards in 2019-20 and 2021-22 season",
-       x = "PPG") +
+  geom_density(aes(x = ppg_total, color = season)) +
+  labs(title = "PPG in 2021-22 season generally higher than in 2019-2020 season",
+       x = "PPG",
+       color = "Season") +
   scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
 ```
@@ -320,7 +320,7 @@ ggplot(ohl_filtered) +
 ```{r, fig.align='center'}
 # drafted status vs treatment
 mosaicplot(table("Drafted" = ohl_filtered$drafted,
-                 "Treatment" = ohl_filtered$treatment),
+                 "COVID Season" = ohl_filtered$treatment),
            main = "Drafted players more likely to have played during COVID",
            shade = TRUE)
 ```
@@ -331,7 +331,9 @@ mosaicplot(table("Drafted" = ohl_filtered$drafted,
 # pm vs treatment
 ggplot(ohl_filtered, aes(x = pm_relative, color = treatment)) +
   geom_density() +
-  labs("Insignificant difference in relative PM for players who played during COVID season", x = "relative plus minus") +
+  labs(title = "Insignificant difference in relative PM for players who played during COVID season", 
+       x = "relative PM",
+       color = "COVID Season") +
   scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
 ```
@@ -342,7 +344,9 @@ ggplot(ohl_filtered, aes(x = pm_relative, color = treatment)) +
 # age vs treatment
 ggplot(ohl_filtered, aes(x = age, color = treatment)) +
   geom_density() +
-  labs("Insignificant difference in age for players who played during COVID season", x = "Age") +
+  labs(title = "Insignificant difference in age for players who played during COVID season", 
+       x = "Age",
+       color = "COVID Season") +
   scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
 ```
@@ -353,11 +357,12 @@ ggplot(ohl_filtered, aes(x = age, color = treatment)) +
 # gp vs treatment
 ggplot(ohl_filtered, aes(x = gp_total, color = treatment)) +
   geom_density() +
-  labs("Players who played during COVID season generally played more games", x = "Games Played") +
+  labs(title = "Players who played during COVID season generally played more games", 
+       x = "GP",
+       color = "COVID season") +
   scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
 ```
-
 
 ### {-}
 
@@ -537,7 +542,7 @@ The distributions of team plus-minus scores in the 2019-2020 and 2021-2022 are a
 
 ## Methods
 
-Before performing causal analysis, we wanted to determine whether playing during the COVID season had a significant effect on PPG when controlling for variables (and interactions between variables) suspected to be associated with the response through EDA. Because PPG is right skewed and bounded between 0 and some positive number, the assumptions of ordinary least squares regression are not met. We performed Gamma regression to more accurately model the relationship between our response and explanatory variables.
+Before performing causal analysis, we wanted to determine whether playing during the COVID season had a significant effect on PPG when controlling for variables (and interactions between variables) suspected to be associated with the response through EDA. Because PPG is right skewed and bounded between 0 and some positive number, the assumptions of ordinary least squares regression are not met. We performed Gamma regression with the log link function to more accurately model the relationship between our response and explanatory variables.
 
 <center>
 <style>
@@ -564,56 +569,76 @@ plot(ohl_glm_interaction, which = 1)
 
 ### Model Results
 
-\(\widehat{PPG + .001} = -5.983 + .602*forward + .00412*relative \hspace{.1 cm} PM +\\ .0622*played \hspace{.1 cm} during \hspace{.1 cm} covid + .365*drafted + .0174* GP + .204*age \\ + .0266*season + .000635*forward*relative \hspace{.1 cm} PM \\+ .338*played \hspace{.1 cm} during \hspace{.1 cm} covid * drafted -.0000285*relative \hspace{.1 cm} PM*GP\\ + .00570*relative \hspace{.1 cm} PM*drafted + .000470*relative \hspace{.1 cm} PM*age\)
+\(ln(\widehat{\text{PPG} + .001}) = -5.983 + .602*\text{Forward} + .00412*\text{Relative PM} + .0622*\text{Played during COVID} + .365*\text{Drafted} + .0174* \text{GP} + .204*\text{Age} \\ + .0266*\text{Season} + .000635*\text{Forward}*\text{Relative PM} + .338*\text{Played during COVID} * \text{Drafted} -.0000285*\text{relative PM}*\text{GP}\\ + .00570*\text{relative PM}*\text{Drafted} + .000470*\text{Relative PM}*\text{Age}\)
 
 Variables found to be significant at the \(\alpha = .001\) level in our model:
-- position
-- relative plus-minus
-- drafted status
-- games played
-- age
+
+- Position
+
+- Relative PM
+
+- Drafted status
+
+- Games played
+
+- Age
 
 Variables found to be significant at the \(\alpha = .05\) level in our model:
-- interaction of our treatment variable and drafted status
+
+- Interaction of our treatment variable and drafted status
 
 ### Limitations
 
-<span style="color: darkblue;">
-**What are the model assumptions for gamma regression?**
-</span>
+Model limitations:
 
-Our response variable to approximate player performance was points per game. It is a simple measure that may not adequately capture all aspects of a player's performance. Though we control for position in our model, PPG will generally be higher for forwards than defensemen. Defensive performance is not well-approximated by PPG, and this measure would bias offensive defensemen as the best-performing. Additionally, good defensive forwards may be undervalued by this metric. A more nuanced measure that incorporates important defensive statistics like turnovers created, passes completed, shots blocked, etc. may better approximate player performance.
-
-We defined player quality in terms of relative plus-minus given by \( PM_{relative} = PM_{player} - \mu_{team\hspace{.05cm}PM}\). Plus-minus does not account for all of the statistics that might measure the quality of a player (shots blocked, turnovers created, passes completed, etc) and does not consider factors like sheltering. However, plus-minus is one of the best options to approximate player quality given our limited dataset.
+- The relationship between games played and PPG was shown to be non-linear in our EDA, but we did not account for a non-linear interaction between these variables
 
 Player Performance:
+
 - Defined as \(PPG = \frac{(points + assists)}{games \hspace{.1 cm} played}\)
+
 - May not adequately capture all aspects of a player's performance
+
 - Though we control for position in our model, PPG will generally be higher for forwards than defensemen
+
 - Defensive performance is not well-approximated by PPG, and this measure would bias offensive defensemen as the best-performing defensemen.
+
 - Good defensive forwards may be undervalued using this metric
+
 - A more nuanced measure that incorporates important defensive statistics like turnovers created, passes completed, shots blocked, etc. may better approximate player performance.
 
 Player quality
- - defined by \( player quality = PM_{relative} = PM_{player} - \mu_{team\hspace{.05cm}PM}\)
- - Plus minus does not account for all of the statistics that might measure the quality of a player (shots blocked, turnovers created, passes completed, etc)
- - Does not consider factors like sheltering
+
+- Defined by \( player quality = PM_{relative} = PM_{player} - \mu_{team\hspace{.05cm}PM}\)
+ 
+- Plus minus does not account for all of the statistics that might measure the quality of a player (shots blocked, turnovers created, passes completed, etc)
+
+- Does not consider factors like sheltering
  
 Treatment Variable:
 
-Our treatment variable was defined as players who participated in more than 10 games in a single league or tournament during the COVID season. We did not control for quality of league. Additionally, though typically only the best players are selected to play in championships/tournaments, many of them were not included as treated in our analysis because of their low game count. 
-Conversely, players who played only a few games in mediocre leagues may have been counted as treated. Players who totaled more than 10 games cumulatively across two or more different leagues would also not be considered treated, though they played a significant number of games. Future analysis could provide a more distinct view of the treatment variable in which league quality and number of games played are controlled for.
+- Defined as players who participated in more than 10 games during the COVID season in a single league or tournament. 
 
-Further, games played was a significant variable in our model, but we did not control for percentage of length of season. Both the 2020-2021 and 2021-2022 seasons were shortened due to the pandemic.
+- We did not control for quality of league. 
+
+- Though typically only the best players are selected to play in championships/tournaments, many of them were not included as treated in our analysis because of their low game count. 
+
+- Conversely, players who played only a lot of games games in mediocre leagues may have been counted as treated.
+
+- Skaters who played more than 10 games cumulatively across two or more different leagues would also not be considered treated, though they played a significant number of games.
+
+- Future analysis could provide a more distinct view of the treatment variable in which both league quality and number of games played are controlled for.
+
 
 <span style="color: darkblue;">
 **Next steps for future work:**
 </span>
 
 *   Redefining/tweaking treatment and response variables
-*   Preform causal analysis, with a focus on using BART and propensity scores
+*   Perform causal analysis, with a focus on using BART and propensity scores
 
 ### Acknowledgments
 
 Thank you to our advisor Dr. Sam Ventura (and assistant Dominic Ventura) and our professor, Dr. Ron Yurko. We would also like to thank our TAs, Nick Kissel, Meg Ellingwood, Wanshan Li, Kenta Takatsu, and YJ Choe. Lastly, thank you to Professor Ben Baumer, Smith College and Dr. Ryne Vankrevelen, Elon University. We could not have completed this project without you all and we sincerely appreciate your help!
 
+...

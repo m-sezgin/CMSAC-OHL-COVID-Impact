@@ -57,12 +57,6 @@ plyr_quality <- ohl %>%
   ungroup() %>%
   select(player_id, plyr_quality)
 
-# View(plyr_quality %>%
-#   filter(duplicated(plyr_quality$player_id) == TRUE))
-# ## need to deal with duplicate players/rows
-# View(ohl_filtered %>%
-#   filter(duplicated(ohl_filtered$player_id) == TRUE))
-
 ohl_pm <- ohl %>%
   filter(season %in% c("2019-2020", "2021-2022"), league == "OHL") %>%
   group_by(team_name, season) %>%
@@ -254,7 +248,7 @@ Takeaways:
 ohl_glm_interaction <- glm(ppg_alt ~ position*pm_relative + treatment*drafted + gp_total + pm_relative*gp_total + pm_relative*drafted + age_continuous*pm_relative + season, 
                           data = ohl_filtered, 
                           family = Gamma)
- plot(ohl_glm_interaction, which = c(1, 2))
+ plot(ohl_glm_interaction)
  summary(ohl_glm_interaction)
  
 # ohl_filtered <- ohl_filtered %>%

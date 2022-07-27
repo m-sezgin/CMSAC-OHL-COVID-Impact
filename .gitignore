@@ -2,5 +2,11 @@
 .Rhistory
 .RData
 .Ruserdata
-.csv
-.html
+midpoint.html
+sams_ohl_data_request.csv
+meeting3prep.html
+meeting4prep.html
+meeting5prep.html
+*.html
+
+vignettes/*.html

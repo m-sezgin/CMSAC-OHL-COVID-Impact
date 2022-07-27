@@ -8,3 +8,5 @@ meeting3prep.html
 meeting4prep.html
 meeting5prep.html
 *.html
+
+vignettes/*.html

@@ -34,12 +34,12 @@ ohl_filtered <- ohl_filtered %>%
 # fit variable selection model --------------------------------------------
 # step 1
 
-var_select_bart <- wbart(x.train = select(ohl_filtered2, -draft_year, -round),
+var_select_bart <- wbart(x.train = dply::select(ohl_filtered2, -draft_year, -round),
                          y.train = pull(ohl_filtered, ppg_19_20),
                          sparse = TRUE,
                          nskip = 2000,
                          ndpost = 5000) # don't use - updated below
-var_select_bart <- wbart(x.train = select(filtered, gp_19_20, pts_19_20),
+var_select_bart <- wbart(x.train = dply::select(filtered, gp_19_20, pts_19_20),
                          y.train = pull(ohl_filtered, ppg_19_20),
                          sparse = TRUE,
                          nskip = 2000,
@@ -60,7 +60,7 @@ ohl_update <- ohl_filtered %>%
                               season == "2019-2020" ~ 0)) %>% 
   as.data.frame()
 
-var_select_bart <- wbart(x.train = select(ohl_update, gp_19_20, pts_19_20, 
+var_select_bart <- wbart(x.train = dplyr::select(ohl_update, gp_19_20, pts_19_20, 
                                          age_continuous, pm_relative_19_20, 
                                          pm_rank_19_20, pm_19_20, is_forward, 
                                          is_drafted),
@@ -84,7 +84,7 @@ var_select <- covar_ranking %>%
 # fit a propensity score model --------------------------------------------
 # step 3
 
-prop_bart <- pbart(x.train = select(ohl_update, all_of(var_select)),
+prop_bart <- pbart(x.train = dplyr::select(ohl_update, all_of(var_select)),
                    y.train = pull(ohl_update, treatment),
                    nskip = 2000,
                    ndpost = 5000)
@@ -96,7 +96,7 @@ ohl_update$prop_score <- prop_bart$prob.train.mean
 # fit the treatment effect model ------------------------------------------
 # step 4
 
-te_model <- wbart(x.train = select(ohl_update, gp_19_20, pts_19_20, 
+te_model <- wbart(x.train = dplyr::select(ohl_update, gp_19_20, pts_19_20, 
                                    age_continuous, pm_relative_19_20, 
                                    pm_rank_19_20, pm_19_20, is_forward, 
                                    is_drafted, treatment, prop_score),
@@ -120,7 +120,7 @@ posterior_pred <- predicted_draws(te_model, include_newdata = FALSE)
 # plots using tidybayes ---------------------------------------------------
 
 treatment_var_and_c1 <- ohl_update %>% 
-  select(treatment, is_forward) %>% 
+  dplyr::select(treatment, is_forward) %>% 
   mutate(.row = 1:n(), treatment = as.factor(treatment))
 
 posterior_fitted %>% 
@@ -142,7 +142,7 @@ posterior_treat_eff <-
   treatment_effects(te_model, treatment = "treatment",
                     # the dataset here needs to match the BART data EXACTLY
                     # which is really annoying...
-                    newdata = select(ohl_update, gp_19_20, pts_19_20, 
+                    newdata = dplyr::select(ohl_update, gp_19_20, pts_19_20, 
                                      age_continuous, pm_relative_19_20, 
                                      pm_rank_19_20, pm_19_20, is_forward, 
                                      is_drafted, treatment, prop_score))

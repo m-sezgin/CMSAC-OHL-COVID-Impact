@@ -159,3 +159,10 @@ bal.plot(gam_propensity_match, var.name = "age_continuous")
 bal.plot(gam_propensity_match, var.name = "pm_19_20")
 bal.plot(gam_propensity_match, var.name = "position")
 
+
+# post 7/25 meeting -------------------------------------------------------
+
+
+
+
+

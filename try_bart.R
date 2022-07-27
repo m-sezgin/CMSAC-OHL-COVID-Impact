@@ -30,7 +30,7 @@ ohl_filtered <- ohl_filtered %>%
   mutate(treatment = ifelse(treatment == "Played", 1, 0),
          treatment = as.integer((treatment)))
 ## is using ifelse (over case_when) just a preference? 
-
+ohl_filtered2 <- ohl_filtered
 # fit variable selection model --------------------------------------------
 # step 1
 

@@ -107,6 +107,7 @@ gam_propensity_match <-
 
 summary(gam_propensity_match)
 plot(gam_propensity_match, type = "jitter", interactive = FALSE)
+plot(summary(gam_propensity_match))
 
 
 # does not have pts_19_20
@@ -136,6 +137,7 @@ plot(summary(gam_propensity_match3))
 # just matched data
 gam_matched <- match.data(gam_propensity_match)
 table(gam_matched$treatment)
+
 
 # convert to factors - DONT NEED
 ohl_filtered2$season <- as.factor(ohl_filtered2$season)

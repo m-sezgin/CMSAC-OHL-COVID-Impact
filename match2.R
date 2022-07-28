@@ -8,6 +8,12 @@ library(MatchIt)
 library(mgcv)
 # install.packages("cobalt")
 library(cobalt)
+# install.packages("lmtest") #coeftest
+library(lmtest)
+# install.packages("sandwich") #vcovCL
+library(sandwich)
+# install.packages("optmatch")
+library(optmatch)
 
 
 # load data ---------------------------------------------------------------
@@ -24,11 +30,22 @@ ohl_filtered %>% # doesn't work
 
 ohl_filtered2 <- ohl_filtered
 
+
+
 # from bart -> make treatment binary
 ohl_filtered2 <- ohl_filtered2 %>% 
   mutate(treatment = ifelse(treatment == "Played", 1, 0),
          treatment = as.integer((treatment)))
 
+ohl_filtered2 <- ohl_filtered %>% 
+  mutate(treatment = case_when(treatment == "Played" ~ 1,
+                               treatment == "Didn't Play" ~ 0))
+
+# convert to factors - DONT NEED?
+ohl_filtered2$season <- as.factor(ohl_filtered2$season)
+ohl_filtered2$position <- as.factor(ohl_filtered2$position)
+ohl_filtered2$got_drafted <- as.factor(ohl_filtered2$got_drafted)
+ohl_filtered2$treatment <- as.factor(ohl_filtered2$treatment)
 
 # ignore - first attempts -------------------------------------------------
 
@@ -99,21 +116,25 @@ first_logit_gam <- gam(treatment ~ s(kick_distance),
 
 gam_propensity_match <- 
   matchit(treatment ~ gp_19_20 + position + pts_19_20 + ppg_19_20 + 
-            age_continuous + pm_19_20, 
+            age_continuous + pm_rank_19_20, 
           data = ohl_filtered2, method = "nearest",
           distance = "gam",
           replace = FALSE, # do not reuse controls
           ratio = 1)
-
 summary(gam_propensity_match)
 plot(gam_propensity_match, type = "jitter", interactive = FALSE)
 plot(summary(gam_propensity_match))
+
+plot(gam_propensity_match2, type = "qq", interactive = FALSE,
+     which.xs = c("gp_19_20", "ppg_19_20", "pm_rank_19_20"))
+## why is this only showing gp?
+## can it not take categorical?
 
 
 # does not have pts_19_20
 gam_propensity_match2 <- 
   matchit(treatment ~ gp_19_20 + position + ppg_19_20 + 
-            age_continuous + pm_19_20, 
+            age_continuous + pm_rank_19_20, 
           data = ohl_filtered2, method = "nearest",
           distance = "gam",
           replace = FALSE, # do not reuse controls
@@ -121,6 +142,9 @@ gam_propensity_match2 <-
 summary(gam_propensity_match2) # lowest Std. Pair Dist.
 plot(gam_propensity_match2, type = "jitter", interactive = FALSE)
 plot(summary(gam_propensity_match2))
+
+### can't tell which is better - first or second 
+### second has better love plot
 
 # does not have pm_19_20
 gam_propensity_match3 <- 
@@ -133,18 +157,7 @@ gam_propensity_match3 <-
 summary(gam_propensity_match3)
 plot(gam_propensity_match3, type = "jitter", interactive = FALSE)
 plot(summary(gam_propensity_match3))
-
-# just matched data
-gam_matched <- match.data(gam_propensity_match)
-table(gam_matched$treatment)
-
-
-# convert to factors - DONT NEED
-ohl_filtered2$season <- as.factor(ohl_filtered2$season)
-ohl_filtered2$position <- as.factor(ohl_filtered2$position)
-ohl_filtered2$got_drafted <- as.factor(ohl_filtered2$got_drafted)
-ohl_filtered2$treatment <- as.factor(ohl_filtered2$treatment)
-
+# the worst match
 
 # cobalt package ----------------------------------------------------------
 
@@ -162,7 +175,65 @@ bal.plot(gam_propensity_match, var.name = "position")
 
 # post 7/25 meeting -------------------------------------------------------
 
+# just matched data
+gam_matched <- match.data(gam_propensity_match)
+table(gam_matched$treatment)
+matched_model <- glm(treatment ~ gp_19_20 + position + pts_19_20 + 
+                       ppg_19_20 + age_continuous + pm_rank_19_20, 
+                     data = gam_matched, family = "binomial")
+summary(matched_model)
+plot(matched_model, which = 1)
+coeftest(matched_model, vcov. = vcovCL, cluster = ~subclass)
 
+gam_matched2 <- match.data(gam_propensity_match2)
+matched_model2 <- glm(treatment ~ gp_19_20 + position + 
+                        ppg_19_20 + age_continuous + pm_rank_19_20, 
+                      data = gam_matched2, family = "binomial")
+summary(matched_model2)
+plot(matched_model2, which = 1)
+coeftest(matched_model2, vcov. = vcovCL, cluster = ~subclass)
 
+# trying "optimal" method
+opt_propensity_match <- 
+  matchit(treatment ~ gp_19_20 + position + pts_19_20 + ppg_19_20 + 
+            age_continuous + pm_rank_19_20, 
+          data = ohl_filtered2, method = "optimal",
+          distance = "gam",
+          replace = FALSE, # do not reuse controls
+          ratio = 1)
+summary(opt_propensity_match)
+# a lot better std. pair dist. than the nearest one
+plot(opt_propensity_match, type = "jitter", interactive = FALSE)
+plot(summary(opt_propensity_match))
 
+opt_propensity_match2 <- 
+  matchit(treatment ~ gp_19_20 + position + ppg_19_20 + 
+            age_continuous + pm_rank_19_20, 
+          data = ohl_filtered2, method = "optimal",
+          distance = "gam",
+          replace = FALSE, # do not reuse controls
+          ratio = 1)
+summary(opt_propensity_match2)
+# a lot better std. pair dist. than the nearest one
+plot(opt_propensity_match2, type = "jitter", interactive = FALSE)
+# better than first optimal one
+plot(summary(opt_propensity_match2))
+
+# optimal matched data
+opt_matched <- match.data(opt_propensity_match)
+matched_opt_model <- glm(treatment ~ gp_19_20 + position + pts_19_20 + 
+                       ppg_19_20 + age_continuous + pm_rank_19_20, 
+                     data = opt_matched, family = "binomial")
+summary(matched_opt_model)
+plot(matched_opt_model, which = 1)
+coeftest(matched_opt_model, vcov. = vcovCL, cluster = ~subclass)
+
+opt_matched2 <- match.data(opt_propensity_match2)
+matched_opt_model2 <- glm(treatment ~ gp_19_20 + position + 
+                           ppg_19_20 + age_continuous + pm_rank_19_20, 
+                         data = opt_matched2, family = "binomial")
+summary(matched_opt_model2)
+plot(matched_opt_model2, which = 1) 
+# the best of the options
+coeftest(matched_opt_model2, vcov. = vcovCL, cluster = ~subclass)
 

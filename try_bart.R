@@ -9,6 +9,7 @@ library(tidytreatment)
 library(dplyr)
 library(tidybayes)
 library(ggplot2)
+library(RColorBrewer)
 
 
 # load data ---------------------------------------------------------------
@@ -30,7 +31,12 @@ ohl_filtered <- ohl_filtered %>%
   mutate(treatment = ifelse(treatment == "Played", 1, 0),
          treatment = as.integer((treatment)))
 ## is using ifelse (over case_when) just a preference? 
-ohl_filtered2 <- ohl_filtered
+
+# load rds files
+var_select_bart <- readRDS("var_select_bart.rds")
+prop_bart <- readRDS("prop_bart.rds")
+te_model <- readRDS("te_model.rds")
+
 # fit variable selection model --------------------------------------------
 # step 1
 
@@ -150,6 +156,55 @@ posterior_treat_eff <-
 # histogram of treatment effect (all draws)
 posterior_treat_eff %>% 
   ggplot() +
-  geom_histogram(aes(x = cte), bins = 30, color = "white") +
+  geom_histogram(aes(x = cte), bins = 50, color = "white") +
   theme_bw() + ggtitle("Histogram of treatment effect (all draws)")
 
+# histogram of treatment effect (mean for each subject)
+posterior_treat_eff %>% summarise(cte_hat = mean(cte)) %>%
+  ggplot() +
+  geom_histogram(aes(x = cte_hat), bins = 60, colour = "white") + 
+  theme_bw() + 
+  ggtitle("Histogram of treatment effect (median for each subject)")
+
+# get the ATE and ATT directly:
+posterior_ate <- tidy_ate(te_model, treatment = "treatment", 
+                          newdata = ohl_update)
+## made R abort
+posterior_att <- tidy_att(te_model, treatment = "treatment", 
+                          newdata = ohl_update)
+## didn't try running cause I didn't want to crash R
+
+# sample based (using data from fit) conditional treatment effects, 
+# posterior draws
+posterior_treat_eff_on_treated <- 
+  treatment_effects(te_model, treatment = "treatment", newdata = ohl_update, 
+                    subset = "treated") 
+## also made R abort
+
+# posterior CIs of the CATEs
+posterior_treat_eff %>% select(-treatment) %>% point_interval() %>%
+  arrange(cte) %>% mutate(.orow = 1:n()) %>% 
+  ggplot() + 
+  geom_interval(aes(x = .orow, y= cte, ymin = .lower, ymax = .upper)) +
+  geom_point(aes(x = .orow, y = cte), shape = "circle open", alpha = 0.5) + 
+  ylab("Median posterior CATE for each subject (95% CI)") +
+  theme_bw() + coord_flip() + scale_colour_brewer() +
+  theme(axis.title.y = element_blank(), 
+        axis.text.y = element_blank(), 
+        axis.ticks.y = element_blank(),
+        legend.position = "none")
+
+# CATEs varying over position (is_forward) - haven't updated yet
+posterior_treat_eff %>%
+  left_join(tibble(is_forward = dat$c1, .row = 1:length(dat$c1) ), by = ".row") %>%
+  group_by(c1) %>%
+  ggplot() + 
+  stat_halfeye(aes(x = c1, y = cte), alpha = 0.7) +
+  scale_fill_brewer() +
+  theme_bw() + ggtitle("Treatment effect by `c1`")
+
+# save as RDS files -------------------------------------------------------
+
+saveRDS(var_select_bart, "../CMSAC-NHL-COVID-Impact/var_select_bart.rds")
+saveRDS(prop_bart, "../CMSAC-NHL-COVID-Impact/prop_bart.rds")
+saveRDS(te_model, "../CMSAC-NHL-COVID-Impact/te_model.rds")

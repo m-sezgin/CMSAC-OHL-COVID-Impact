@@ -194,7 +194,7 @@ posterior_treat_eff %>% select(-treatment) %>% point_interval() %>%
         axis.ticks.y = element_blank(),
         legend.position = "none")
 
-# CATEs varying over position (is_forward) - haven't updated yet
+# CATEs varying over position (is_forward) - haven't updated
 posterior_treat_eff %>%
   left_join(tibble(is_forward = dat$c1, .row = 1:length(dat$c1) ), by = ".row") %>%
   group_by(c1) %>%

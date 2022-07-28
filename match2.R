@@ -32,7 +32,7 @@ ohl_filtered2 <- ohl_filtered
 
 
 
-# from bart -> make treatment binary
+# from bart -> make treatment binary -- DOESN'T WORK IN THIS CODE
 ohl_filtered2 <- ohl_filtered2 %>% 
   mutate(treatment = ifelse(treatment == "Played", 1, 0),
          treatment = as.integer((treatment)))
@@ -260,11 +260,10 @@ coeftest(matched_opt_model, vcov. = vcovCL, cluster = ~subclass)
 another_match <- lm(ppg_21_22 ~ position + ppg_19_20 + treatment + 
                       gp_21_22 + age_continuous + pts_19_20,
                     data = opt_matched)
+# changed to opt_match_lm 
 summary(another_match)
 coeftest(another_match, vcov. = vcovCL, cluster = ~subclass)
-
-
-
-
+plot(another_match, which = 1)
+coeftest(matched_opt_model, vcov. = vcovCL, cluster = ~subclass)
 
 

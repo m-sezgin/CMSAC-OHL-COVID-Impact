@@ -204,7 +204,7 @@ ohl %>%
 
 ```{r}
 ohl_filtered %>% 
-  dplyr::select(first_name, last_name, season, position, ppg_19_20,
+  dplyr::select(first_name, last_name, position, ppg_19_20,
                 gp_21_22, pts_21_22, ppg_21_22) %>%
   head(5) %>%
   knitr::kable() %>% 

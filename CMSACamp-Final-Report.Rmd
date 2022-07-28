@@ -187,7 +187,7 @@ ohl %>%
 ohl_filtered %>% 
   dplyr::select(first_name, last_name, season, position, ppg_19_20,
                 gp_21_22, pts_21_22, ppg_21_22) %>%
-  head(5) %>%
+  head(6) %>%
   knitr::kable() %>% 
   kable_styling("striped")
 ```
@@ -202,7 +202,7 @@ ohl_filtered %>%
 ```{r, fig.align = 'center'}
 # distribution of response
 ggplot(ohl_filtered, aes(x = ppg_21_22)) +
-  geom_density() +
+  geom_density(color = "royalblue3") +
   labs(title = "Distribution of player performance in post-COVID season",
        x = "Player Performance (PPG Post-COVID Season)") +
   theme_bw()
@@ -408,8 +408,6 @@ __Ordinary Least Squares (OLS)__ : We fit OLS without interaction, because this 
 
 ### Causal Analysis:
 
-
-
 ```{r, include = FALSE}
 # Basic OLS Regression
 ohl_mlr <- lm(ppg_21_22 ~ position + ppg_19_20 + treatment + drafted + gp_21_22 + age_continuous, data = ohl_filtered)
@@ -513,13 +511,22 @@ opt_propensity_match <-
           replace = FALSE, # do not reuse controls
           ratio = 1)
 plot(opt_propensity_match, type = "jitter", interactive = FALSE)
-plot(summary(opt_propensity_match))
 ```
 
 The dots are aligned fairly well on this plot. They are similar in range and have minimal gaping. 
 
+```{r love-plot, fig.align='center'}
+plot(summary(opt_propensity_match))
+```
+
+The Love plot indicates that position, age, and plus-minus are well-balanced. Ideally, the all of the dots would be around the two lines. The points for distance, games played, points, and points per game are further left for the matched data than all of the data. The new model of matched data allows us to make more accurate inferences.  
+
 <span style="color: darkblue;">
-**The following plot was fit using only the matched data:**
+**The following model was fit using only the matched data:**
+</span>
+
+<span style="color: darkblue;">
+ppg_21_22 ~ position + ppg_19_20 + treatment + gp_21_22 + age_continuous + pts_19_20
 </span>
 
 ```{r lm_opt_prop, fig.align='center'}
@@ -532,7 +539,7 @@ opt_match_lm <- lm(ppg_21_22 ~ position + ppg_19_20 + treatment +
 plot(opt_match_lm, which = 1)
 ```
 
-FIX - ADD
+The linear model appears like a good fit for this data. It meets the majority of requirements for linearity. There are no large curves and the errors are evenly spread. 
 
 #### Distribution Plots of Individual Variables {.tabset}
 
@@ -640,8 +647,6 @@ posterior_fitted
 # function to tidy predicted draws and add random normal noise by default
 posterior_pred <- predicted_draws(te_model, include_newdata = FALSE)
 ```
-
-?? include tidybayes plot?
 
 #### Treatment Effects {.tabset}
 

@@ -196,15 +196,74 @@ posterior_treat_eff %>% select(-treatment) %>% point_interval() %>%
 
 # CATEs varying over position (is_forward) - haven't updated
 posterior_treat_eff %>%
-  left_join(tibble(is_forward = dat$c1, .row = 1:length(dat$c1) ), by = ".row") %>%
-  group_by(c1) %>%
+  left_join(tibble(is_forward = ohl_update$is_forward, 
+                   .row = 1:length(ohl_update$is_forward) ), by = ".row") %>%
+  group_by(is_forward) %>%
   ggplot() + 
-  stat_halfeye(aes(x = c1, y = cte), alpha = 0.7) +
+  stat_halfeye(aes(x = is_forward, y = cte), alpha = 0.7) +
   scale_fill_brewer() +
-  theme_bw() + ggtitle("Treatment effect by `c1`")
+  theme_bw() + ggtitle("Treatment effect by position (is_forward)")
+
+
+# investigating variable importance ---------------------------------------
+
+# occurrences of a variable in BART
+treatment_interactions <-
+  covariate_with_treatment_importance(te_model, treatment = "treatment")
+
+treatment_interactions %>% 
+  ggplot() + 
+  geom_bar(aes(x = variable, y = avg_inclusion), stat = "identity") +
+  theme_bw() + 
+  ggtitle("Important variables interacting with treatment ('treatment')") + 
+  ylab("Inclusion counts") +
+  theme(axis.text.x = element_text(angle = 45, hjust=1))
+
+variable_importance <-
+  covariate_importance(te_model)
+
+variable_importance %>% 
+  ggplot() + 
+  geom_bar(aes(x = variable, y = avg_inclusion), stat = "identity") +
+  theme_bw() + ggtitle("Important variables overall") +
+  ylab("Inclusion counts") +
+  theme(axis.text.x = element_text(angle = 45, hjust=1))
+
+
+# model checking and convergence ------------------------------------------
+
+# examining model residuals
+res <- residual_draws(te_model, response = pull(ohl_update, treatment), 
+                      include_newdata = FALSE)
+res %>%   
+  point_interval(.residual, y, .width = c(0.95) ) %>%
+  select(-y.lower, -y.upper) %>%
+  ggplot() + 
+  geom_pointinterval(aes(x = y, y = .residual, ymin = .residual.lower,  
+                         ymax = .residual.upper), alpha = 0.2) +
+  scale_fill_brewer() +
+  theme_bw() + ggtitle("Residuals vs observations")
+# useless
+
+# fit regression
+res %>% summarise(.fitted = mean(.fitted), y = first(y)) %>% 
+  ggplot(aes(x = y, y = .fitted)) +
+  geom_point() + 
+  geom_smooth(method = "lm") + 
+  theme_bw() + ggtitle("Observations vs fitted")
+# useless
+
+# Q-Q plot
+res %>% summarise(.residual = mean(.residual)) %>%
+  ggplot(aes(sample = .residual)) + 
+  geom_qq() + 
+  geom_qq_line() + 
+  theme_bw() + ggtitle("Q-Q plot of residuals")
+# weird
 
 # save as RDS files -------------------------------------------------------
 
-saveRDS(var_select_bart, "../CMSAC-NHL-COVID-Impact/var_select_bart.rds")
-saveRDS(prop_bart, "../CMSAC-NHL-COVID-Impact/prop_bart.rds")
-saveRDS(te_model, "../CMSAC-NHL-COVID-Impact/te_model.rds")
+# saveRDS(var_select_bart, "../CMSAC-NHL-COVID-Impact/var_select_bart.rds")
+# saveRDS(prop_bart, "../CMSAC-NHL-COVID-Impact/prop_bart.rds")
+# saveRDS(te_model, "../CMSAC-NHL-COVID-Impact/te_model.rds")
+

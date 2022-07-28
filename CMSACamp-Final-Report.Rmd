@@ -73,11 +73,12 @@ ohl_pm <- ohl %>%
   filter(season == "2019-2020", league == "OHL") %>%
   group_by(team_name) %>%
   arrange(team_name, desc(pm)) %>%
-  mutate(pm_rank = 1:n(),
-         pm_relative = pm - mean(pm)
+  mutate(pm_rank_19_20 = 1:n(),
+         pm_relative_19_20 = pm - mean(pm),
+         pm_19_20 = pm
   ) %>%
   ungroup() %>%
-  dplyr::select(player_id, team_name, pm_rank, pm_relative)
+  dplyr::select(player_id, team_name, pm_rank_19_20, pm_relative_19_20, pm_19_20)
 
 # We need to check that each player played in the OHL in 2019-2020 and 2021-2022
 ohl_szn <- ohl %>%
@@ -96,7 +97,15 @@ ohl_21_22_ppg <- ohl_szn %>%
   mutate(ppg_21_22 = sum(pts)/sum(gp),
          pts_21_22 = sum(pts),
          gp_21_22 = sum(gp)) %>%
-  dplyr::select(player_id, ppg_21_22, pts_21_22, gp_21_22)
+  ungroup() %>%
+  mutate(ppg_21_22_z = (ppg_21_22 - mean(ppg_21_22))/sd(ppg_21_22)) %>%
+  group_by(team_name) %>%
+  arrange(team_name, desc(pm)) %>%
+  mutate(pm_rank_21_22 = 1:n(),
+         pm_relative_21_22 = pm - mean(pm)
+  ) %>%
+  ungroup() %>%
+  dplyr::select(player_id, ppg_21_22, pts_21_22, gp_21_22, pm_rank_21_22, pm_relative_21_22, ppg_21_22_z)
 
 # Add treatment vars and pm
 ohl_treatment <- ohl_szn %>%
@@ -119,11 +128,17 @@ ohl_performance <- ohl_age %>%
   mutate(ppg_19_20 = sum(pts)/sum(gp),
          gp_19_20 = sum(gp),
          pts_19_20 = sum(pts),
-         pm_relative_19_20 = mean(pm_relative),
-         pm_rank_19_20 = trunc(mean(pm_rank)),
-         pm_19_20 = pm,
          treatment = ifelse(gp_covid > 0, "Played", "Didn't Play")
   ) %>%
+  ungroup() %>%
+  mutate(ppg_19_20_z = (ppg_19_20 - mean(ppg_19_20))/sd(ppg_19_20)) %>%
+  group_by(team_name) %>%
+  arrange(team_name, desc(pm)) %>%
+  mutate(pm_rank_19_20 = 1:n(),
+         pm_relative_19_20 = pm - mean(pm)
+  ) %>%
+  ungroup() %>%
+  group_by(player_id) %>%
   arrange(player_id, season) %>%
   filter(duplicated(player_id) == FALSE) %>%
   ungroup()
@@ -140,7 +155,7 @@ ohl_filtered <- ohl_drafted %>%
 
 # clean up
 ohl_filtered <- ohl_filtered %>%
-  dplyr::select(season, player_id, championship, gp_19_20, first_name, last_name, position, age, gp_19_20, pts_19_20, ppg_19_20, drafted, draft_year, round, overall_pick_num, age_continuous, pm_relative_19_20, pm_rank_19_20, pm_19_20, treatment, ppg_21_22, gp_covid, gp_21_22, covid_league, pts_21_22)
+  dplyr::select(season, player_id, championship, gp_19_20, first_name, last_name, position, age, gp_19_20, pts_19_20, ppg_19_20, drafted, draft_year, round, overall_pick_num, age_continuous, pm_relative_19_20, pm_rank_19_20, pm_rank_21_22, pm_relative_21_22, treatment, ppg_21_22, gp_covid, gp_21_22, covid_league, pts_21_22, ppg_19_20_z, ppg_21_22_z, pm_19_20)
 ```
 
 
@@ -167,7 +182,7 @@ ohl %>%
 **Variables added** :
 
 - **Player Performance** : Approximated by points per game (PPG) in the post-COVID (2021-2022) season 
-  - If a player played for multiple teams during this season, PPG was averaged over both teams\
+  - If a player played for multiple teams during this season, PPG was averaged over both teams
 
 - **GP** : Games played (GP) in both pre-COVID season (combined if a player played for multiple teams in a season)
 
@@ -178,6 +193,10 @@ ohl %>%
 - **Player Quality** : Approximated by player PPG in the pre-COVID season
 
 - **Drafted** : Whether a player was drafted in 2020 or earlier
+
+- **Relative PM** : Relative plus-minus (PM) is defined as a players PM relative to the average PM of their team (\(\text{Relative PM} = PM_{player} - \mu_{PM team}\))
+
+- **Ranked PM** : How a player's PM ranks among those of their teammates
 
 <span style="color: darkblue;">
 **Snippet of Filtered Data:**
@@ -227,10 +246,11 @@ ggplot(ohl_filtered, aes(x = ppg_21_22, color = treatment)) +
 # age vs ppg
 ggplot(ohl_filtered, aes(x = age_continuous, y = ppg_21_22)) +
   geom_point(alpha = .5) +
-  labs(title = "No relationship between player performance and age",
+  labs(title = "No strong observable relationship between player performance and age",
        x = "Age pre-COVID",
        y = "Player Performance (PPG Post-COVID Season)") +
-  theme_bw()
+  theme_bw() +
+  geom_smooth(method = "lm")
 ```
 
 #### GP vs Performance
@@ -331,7 +351,7 @@ ggplot(ohl_filtered, aes(x = age_continuous, color = treatment)) +
 # gp vs treatment
 ggplot(ohl_filtered, aes(x = gp_19_20, color = treatment)) +
   geom_density() +
-  labs(title = "Players\nwho played during COVID season played more games in pre-COVID season", 
+  labs(title = "Players who played during COVID season played more games\nin pre-COVID season", 
        x = "GP in Pre-COVID Season",
        color = "COVID season") +
   scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
@@ -396,9 +416,9 @@ ggplot(ohl_filtered, aes(x = gp_19_20, y = ppg_19_20)) +
 
 ### Regression
 
-Before performing causal analysis, we wanted to determine whether playing during the COVID season had a significant effect on PPG when controlling for variables (and interactions between variables) suspected to be associated with the response through EDA. 
+Before performing causal analysis, we wanted to determine whether playing during the COVID season had a significant effect on PPG when controlling for variables (and interactions between variables) suspected to be associated with the response through EDA. When possible, we attempted a few different measures of player quality/player performance, including PPG z-scores (to control for differences in overall scoring across seasons) and relative plus-minus (PM) scores (computes player's PM relative to their team).
 
-__Ordinary Least Squares (OLS)__ : We fit OLS without interaction, because this model is the simplest and most interpretable model to assess the significance of playing during COVID while still controlling for variables that could be confounding our analysis. 
+__Ordinary Least Squares (OLS)__ : We fit OLS without interaction, because this model is the simplest and most interpretable model to assess the significance of playing during COVID while still controlling for variables that could be confounding our analysis.
 
 **Interaction OLS** : We then fit OLS with interaction to control for the relationships we observed between explanatory variables in our EDA process. We also tested whether the additional complexity of this full model significantly increased our predictive power over the nested model.
 
@@ -406,7 +426,7 @@ __Ordinary Least Squares (OLS)__ : We fit OLS without interaction, because this 
 
 **Mixed-effects Model** : Lastly, we fit a mixed-effects model to determine if the effect of playing during the COVID season was significantly different across leagues. We let the slope and intercept of the regression line vary according to the league, with players who didn't play during the COVID season all grouped into a league called "NONE".
 
-### Causal Analysis:
+### Causal Analysis
 
 ```{r, include = FALSE}
 # Basic OLS Regression
@@ -424,9 +444,8 @@ summary(ohl_mlr_interaction)
 ```{r, include = FALSE}
 # is the full model significantly different from the nested?
 anova(ohl_mlr, ohl_mlr_interaction)
-# yes it is, but the only significnt term is ppg*gp, which is just points...
+# yes it is, but the only significant term is ppg*gp, which is just points...
 ```
-
 
 ```{r, include = FALSE}
 # shift ppg by .001 for gamma regression
@@ -450,7 +469,7 @@ ohl_filtered <- ohl_filtered %>%
 library(lme4)
 ohl_filtered$new_covid_league <- ifelse(is.na(ohl_filtered$covid_league), "NONE",
                                         ohl_filtered$covid_league)
-ohl_lmer <- lmer(ppg_21_22 ~ position + ppg_19_20 + drafted + gp_19_20 + age_continuous + treatment_numeric + (treatment_numeric|new_covid_league),
+ohl_lmer <- lmer(ppg_21_22 ~ position + ppg_19_20 + pts_19_20 + gp_19_20 + age_continuous + treatment_numeric + (treatment_numeric|new_covid_league),
                      data = ohl_filtered)
 summary(ohl_lmer)
 ```
@@ -476,11 +495,11 @@ league_effects %>%
 plotREsim(league_effects, labs = TRUE)
 ```
 
-
 ```{r, include = FALSE}
 # final model choice based on significant terms in non-interaction OLS and interaction OLS
-ohl_mlr_final <- lm(ppg_21_22 ~ position + ppg_19_20 + treatment + pts_19_20 + gp_21_22 + age_continuous, data = ohl_filtered)
-#summary(ohl_mlr_final)
+# did not include points in 19-20 because points are very correlated with ppg
+ohl_mlr_final <- lm(ppg_21_22 ~ position + treatment + ppg_19_20 + gp_21_22 + age_continuous, data = ohl_filtered)
+summary(ohl_mlr_final)
 ```
 
 #### Propensity Score Matching
@@ -659,11 +678,12 @@ posterior_treat_eff <-
                     # which is really annoying...
                     newdata = dplyr::select(ohl_update, gp_19_20, pts_19_20, 
                                      age_continuous, pm_relative_19_20, 
-                                     pm_rank_19_20, pm_19_20, is_forward, 
+                                     pm_rank_19_20, is_forward, pm_19_20,
                                      is_drafted, treatment, prop_score))
 ```
 
 ##### All Draws
+
 ```{r, trt_ef_all, message = FALSE, warning = FALSE, fig.align = 'center'}
 # histogram of treatment effect (all draws)
 posterior_treat_eff %>% 
@@ -673,6 +693,7 @@ posterior_treat_eff %>%
 ```
 
 ##### Mean For Each Subject
+
 ```{r trt_ef_sub, message = FALSE, warning = FALSE, fig.align = 'center'}
 # histogram of treatment effect (mean for each subject)
 posterior_treat_eff %>% summarise(cte_hat = mean(cte)) %>%
@@ -683,6 +704,7 @@ posterior_treat_eff %>% summarise(cte_hat = mean(cte)) %>%
 ```
 
 ##### CIs of the CATEs
+
 ```{r ci-cate, message = FALSE, warning = FALSE, fig.align = 'center'}
 # posterior CIs of the CATEs
 posterior_treat_eff %>% dplyr::select(-treatment) %>% point_interval() %>%
@@ -702,11 +724,11 @@ posterior_treat_eff %>% dplyr::select(-treatment) %>% point_interval() %>%
 
 ## Results
 
-The most appropriate model fit was OLS regression, because it explained approximately 58% of the variance in the data without sacrificing interpretability. Interaction OLS regression only marginally increased the variance explained and was not significantly different from OLS regression. Conditions for inference for both of these models were mostly met. Though Gamma regression fit the data well, the model conditions for inference were not met (the residuals were not gamma-distributed). Lastly, it was found that the effect of playing during COVID did not significantly differ across leagues in our mixed-effects model, so the extra complexity of the model was deemed unnecessary.
+The most appropriate regression model fit was OLS regression. The model explained approximately 59% of the variance in the data without sacrificing interpretability. Interaction OLS regression only marginally increased the variance explained and was not significantly different from OLS regression. Conditions for inference for both of these models were mostly met. Though Gamma regression fit the data well, the model conditions for inference were not met (the residuals were not gamma-distributed). Lastly, it was found that the effect of playing during COVID did not significantly differ across leagues in our mixed-effects model, so the extra complexity of the model was deemed unnecessary.
 
 #### The results of the OLS regression model are as follows:
 
-\(\widehat{\text{Player Performance}} = 0.904 + 0.0601*\text{Treatment} + 0.189*\text{Forward} + 0.318*\text{Player Quality} + 0.00548*\text{Games Played Post-COVID}\\- 0.0709*\text{Age} + 0.0102*\text{Points Pre-COVID} \)
+\(\widehat{\text{Player Performance}} = 0.901 + 0.0655*\text{Treatment} + 0.188*\text{Forward} +  0.862*\text{Player Quality} +  0.00559*\text{Games Played Post-COVID}\\- 0.0556*\text{Age} \)
 
 ```{r, fig.align='center'}
 ohl_filtered %>%
@@ -719,34 +741,60 @@ ohl_filtered %>%
               color = "red",
               size = 2) +
   theme_bw() +
-  labs(title = "Model fit: Actual PPG in post-COVID season vs predicted PPG in post-COVID season",
+  labs(title = "Model fit: Actual PPG in post-COVID season vs predicted PPG in\npost-COVID season",
        x = "Predicted PPG in post-COVID season",
        y = "Actual PPG in Post-COVID Season")
 ```
 
 * Coefficients for position, points in pre-COVID season, games played in post-COVID season, and age were all found to be statistically significant from 0 at the \(\alpha = 0.05\) level.
 
-* The model explains approximately 61% of the variation in player performance in the post-COVID season, which is a statistically significant amount at the \(\alpha = .001\) level \(F(6, 212) = 57.62, p<.001\).
+* The model explains approximately 59% of the variation in player performance in the post-COVID season, which is a statistically significant amount at the \(\alpha = .001\) level \(F(5, 213) = 62.78, p<.001\).
 
-```{r}
-#confint(ohl_mlr_final)
+```{r, include = FALSE}
+confint(ohl_mlr_final)
+```
+
+```{r, include = FALSE}
+# It was found that the effect of playing during COVID did significantly differ across leagues in our mixed-effects model, with the treatment effect being significantly different from zero (postive treatment effect) for the U18 World Junior Championships, Swiss League, and Hockeyettan.
+league_effects <- REsim(ohl_lmer)
+
+league_effects %>%
+  as_tibble() %>%
+  group_by(groupFctr) %>%
+  arrange(desc(mean)) %>%
+  slice(1:5, (n() - 4):n()) %>%
+  ggplot(aes(x = reorder(groupID, mean))) +
+  geom_point(aes(y = mean)) +
+  geom_errorbar(aes(ymin = mean - 2 * sd,
+                    ymax = mean + 2 * sd)) +
+  facet_wrap(~groupFctr, ncol = 1, scales = "free_y") +
+  geom_vline(xintercept = 0, linetype = "dashed",
+             color = "red") +
+  coord_flip() +
+  theme_bw() +
+  labs(title = "League effect sizes")
+plotREsim(league_effects, labs = TRUE)
 ```
 
 ## Discussion
 
-**Model Interpretation** :
+#### OLS Regression Model Interpretation
 
-Player performance in the post-COVID season is expected to increase by .0601 PPG on average for skaters who played during COVID, when holding constant position, player quality, games played in the post-COVID season, points scored in the pre-COVID season, and continuous age.
+Player performance in the post-COVID season is expected to increase by .0655 PPG on average for skaters who played during COVID, when holding constant position, player quality, games played in the post-COVID season, points scored in the pre-COVID season, and continuous age.
 
 However, in this model, the coefficient for whether someone played during the COVID-season was not statistically significantly different from zero. There is no evidence that playing during the COVID season impacted player performance in the post-COVID season for players who played in both the pre- and post-COVID seasons in the OHL. 
 
-We are 95% confident that the change in player performance in the post-COVID for players who played during the COVID season is between -0.022 and 0.142 PPG, holding constant position, player quality, games played in the post-COVID season, points scored in the pre-COVID season, and continuous age.
+We are 95% confident that the change in player performance in the post-COVID for players who played during the COVID season is between -0.0185 and 0.149 PPG, holding constant position, player quality, games played in the post-COVID season, points scored in the pre-COVID season, and continuous age.
 
 This model can be used to predict player performance in the post-COVID season based on a variety of factors in the pre-, COVID, and post-COVID seasons among skaters who played in the OHL in both the pre- and post-COVID seasons.
 
+<!-- **Mixed-Effects model interpretation**: -->
+
+<!-- Playing in the U18 World Junior Championships, Swiss League, and Hockeyettan had a significant positive impact on PPG scored in the post-COVID season when controlling for position + ppg_19_20 + drafted + gp_19_20 + age_continuous + treatment_numeric -->
+
 ### Limitations
 
-#### OLS Regression Model limitations:
+#### OLS Regression Model Limitations
 
 The model conditions for inference were not all met.
 

@@ -41,6 +41,7 @@ library(ggridges)
 library(RColorBrewer)
 library(kableExtra)
 library(DHARMa)
+library(merTools)
 library(BART)
 library(tidytreatment)
 library(tidybayes)
@@ -405,8 +406,8 @@ __Ordinary Least Squares (OLS)__ : We fit OLS without interaction, because this 
 
 **Mixed-effects Model** : Lastly, we fit a mixed-effects model to determine if the effect of playing during the COVID season was significantly different across leagues. We let the slope and intercept of the regression line vary according to the league, with players who didn't play during the COVID season all grouped into a league called "NONE".
 
-
 ### Causal Analysis:
+
 
 
 ```{r, include = FALSE}
@@ -457,6 +458,28 @@ summary(ohl_lmer)
 ```
 
 ```{r, include = FALSE}
+league_effects <- REsim(ohl_lmer)
+
+league_effects %>%
+  as_tibble() %>%
+  group_by(groupFctr) %>%
+  arrange(desc(mean)) %>%
+  slice(1:5, (n() - 4):n()) %>%
+  ggplot(aes(x = reorder(groupID, mean))) +
+  geom_point(aes(y = mean)) +
+  geom_errorbar(aes(ymin = mean - 2 * sd,
+                    ymax = mean + 2 * sd)) +
+  facet_wrap(~groupFctr, ncol = 1, scales = "free_y") +
+  geom_vline(xintercept = 0, linetype = "dashed",
+             color = "red") +
+  coord_flip() +
+  theme_bw() +
+  labs(title = "League effect sizes")
+plotREsim(league_effects, labs = TRUE)
+```
+
+
+```{r, include = FALSE}
 # final model choice based on significant terms in non-interaction OLS and interaction OLS
 ohl_mlr_final <- lm(ppg_21_22 ~ position + ppg_19_20 + treatment + pts_19_20 + gp_21_22 + age_continuous, data = ohl_filtered)
 #summary(ohl_mlr_final)
@@ -468,7 +491,7 @@ The first match we tried was using the nearest neighbor method. This approach do
 
 ```{r prop-score-data, include=FALSE}
 # load data
-ohl_filtered_m <- read_csv("ohl_filtered.csv")
+ohl_filtered_m <- ohl_filtered
 
 ohl_filtered_m <- ohl_filtered %>% 
   mutate(got_drafted = case_when(!is.na(draft_year) & draft_year < 2020
@@ -493,6 +516,7 @@ plot(opt_propensity_match, type = "jitter", interactive = FALSE)
 ```
 
 The following plot was fit using only the matched data. 
+
 ```{r lm_opt_prop, fig.align='center'}
 opt_matched <- match.data(opt_propensity_match)
 
@@ -509,7 +533,7 @@ add in distribution plots
 #### Fitting Bayesian Additive Regression Trees to Observe Treatment Effects
 
 ```{r bart-data, include = FALSE}
-ohl_filtered_b <- read_csv("ohl_filtered.csv")
+ohl_filtered_b <- ohl_filtered
 
 ohl_filtered_b <- ohl_filtered_b %>% 
   mutate(got_drafted = case_when(!is.na(draft_year) & draft_year < 2020

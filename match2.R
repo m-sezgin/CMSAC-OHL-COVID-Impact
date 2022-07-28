@@ -125,7 +125,7 @@ summary(gam_propensity_match)
 plot(gam_propensity_match, type = "jitter", interactive = FALSE)
 plot(summary(gam_propensity_match))
 
-plot(gam_propensity_match2, type = "qq", interactive = FALSE,
+plot(gam_propensity_match, type = "qq", interactive = FALSE,
      which.xs = c("gp_19_20", "ppg_19_20", "pm_rank_19_20"))
 ## why is this only showing gp?
 ## can it not take categorical?
@@ -233,12 +233,14 @@ opt_propensity_match <-
           distance = "gam",
           replace = FALSE, # do not reuse controls
           ratio = 1)
-summary(opt_propensity_match)
+summary(opt_propensity_match) %>% View()
 # a lot better std. pair dist. than the nearest one
 plot(opt_propensity_match, type = "jitter", interactive = FALSE)
 plot(summary(opt_propensity_match))
 
 # distribution plots of individual variables
+bal.plot(opt_propensity_match, var.name = "distance",
+         colors = c("goldenrod1", "dodgerblue"))
 bal.plot(opt_propensity_match, var.name = "distance")
 bal.plot(opt_propensity_match, var.name = "gp_19_20")
 bal.plot(opt_propensity_match, var.name = "position")

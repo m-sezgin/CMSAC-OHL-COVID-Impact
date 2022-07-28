@@ -506,7 +506,7 @@ summary(ohl_mlr_final)
 
 #### Propensity Score Matching
 
-The first match we tried was using the nearest neighbor method. This approach does not optimize criterion, so we switched to optimal pair matching. The absolute within-pair difference of each covariate was smaller in the optimal match, hence being better balanced. 
+The first match we tried was using the nearest neighbor method. This approach does not optimize criterion, so we switched to optimal pair matching. The absolute within-pair difference of each covariate was smaller in the optimal match, hence better balanced. 
 
 ```{r prop-score-data, include=FALSE}
 # load data
@@ -532,9 +532,14 @@ opt_propensity_match <-
           replace = FALSE, # do not reuse controls
           ratio = 1)
 plot(opt_propensity_match, type = "jitter", interactive = FALSE)
+plot(summary(opt_propensity_match))
 ```
 
-The following plot was fit using only the matched data. 
+The dots are aligned fairly well on this plot. They are similar in range and have minimal gaping. 
+
+<span style="color: darkblue;">
+**The following plot was fit using only the matched data:**
+</span>
 
 ```{r lm_opt_prop, fig.align='center'}
 opt_matched <- match.data(opt_propensity_match)
@@ -547,7 +552,52 @@ plot(opt_match_lm, which = 1)
 ```
 
 FIX - ADD
-add in distribution plots
+
+#### Distribution Plots of Individual Variables {.tabset}
+
+##### Distance
+```{r opt_distance, fig.align='center'}
+bal.plot(opt_propensity_match, var.name = "distance",
+         colors = c("goldenrod1", "dodgerblue"))
+```
+
+##### Games Played
+```{r opt_gamesplayed, fig.align='center'}
+bal.plot(opt_propensity_match, var.name = "gp_19_20",
+         colors = c("goldenrod1", "dodgerblue"))
+```
+
+##### Position
+```{r opt_position, fig.align='center'}
+bal.plot(opt_propensity_match, var.name = "position",
+         colors = c("goldenrod1", "dodgerblue"))
+```
+
+##### Points
+```{r opt_points, fig.align='center'}
+bal.plot(opt_propensity_match, var.name = "pts_19_20",
+         colors = c("goldenrod1", "dodgerblue"))
+```
+
+##### Points Per Game
+```{r opt_ppg, fig.align='center'}
+bal.plot(opt_propensity_match, var.name = "distance",
+         colors = c("goldenrod1", "dodgerblue"))
+```
+
+##### Age
+```{r opt_age, fig.align='center'}
+bal.plot(opt_propensity_match, var.name = "age_continuous",
+         colors = c("goldenrod1", "dodgerblue"))
+```
+
+##### Plus-Minus
+```{r opt_plusminus, fig.align='center'}
+bal.plot(opt_propensity_match, var.name = "pm_rank_19_20",
+         colors = c("goldenrod1", "dodgerblue"))
+```
+
+#### {-}
 
 #### Fitting Bayesian Additive Regression Trees to Observe Treatment Effects
 
@@ -645,7 +695,7 @@ posterior_treat_eff %>% summarise(cte_hat = mean(cte)) %>%
   ggplot() +
   geom_histogram(aes(x = cte_hat), bins = 60, colour = "white") + 
   theme_bw() + 
-  ggtitle("Histogram of treatment effect (median for each subject)")
+  ggtitle("Histogram of treatment effect (mean for each subject)")
 ```
 
 ##### CIs of the CATEs
@@ -665,6 +715,8 @@ posterior_treat_eff %>% dplyr::select(-treatment) %>% point_interval() %>%
         legend.position = "none")
 ```
 
+#### {-}
+
 ## Results
 
 The most appropriate regression model fit was OLS regression. The model explained approximately 59% of the variance in the data without sacrificing interpretability. Interaction OLS regression only marginally increased the variance explained and was not significantly different from OLS regression. Conditions for inference for both of these models were mostly met. Though Gamma regression fit the data well, the model conditions for inference were not met (the residuals were not gamma-distributed). Lastly, it was found that the effect of playing during COVID did not significantly differ across leagues in our mixed-effects model, so the extra complexity of the model was deemed unnecessary.
@@ -673,7 +725,7 @@ The most appropriate regression model fit was OLS regression. The model explaine
 
 \(\widehat{\text{Player Performance}} = 0.901 + 0.0655*\text{Treatment} + 0.188*\text{Forward} +  0.862*\text{Player Quality} +  0.00559*\text{Games Played Post-COVID}\\- 0.0556*\text{Age} \)
 
-```{r}
+```{r, fig.align='center'}
 ohl_filtered %>%
   mutate(pred_vals = predict(ohl_mlr_final)) %>%
   ggplot(aes(x = pred_vals,
@@ -749,7 +801,7 @@ The model conditions for inference were not all met.
 
 - Homogeneity of errors: There seems to be roughly constant variance in residuals across all levels of our explanatory variables. This condition is met.
 
-```{r}
+```{r, fig.align='center'}
 plot(ohl_mlr_final, which = c(1, 2))
 ```
 

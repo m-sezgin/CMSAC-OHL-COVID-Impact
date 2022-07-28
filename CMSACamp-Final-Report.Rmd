@@ -302,9 +302,6 @@ Before performing causal analysis, we wanted to determine whether playing during
 
 ### Causal Analysis:
 
-W
-
-
 ```{r}
 # Basic OLS Regression
 ohl_mlr <- lm(ppg_21_22 ~ position + ppg_19_20 + treatment + drafted + gp_21_22 + age_continuous, data = ohl_filtered)

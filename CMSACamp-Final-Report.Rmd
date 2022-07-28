@@ -41,6 +41,7 @@ library(ggridges)
 library(RColorBrewer)
 library(kableExtra)
 library(DHARMa)
+library(merTools)
 ```
 
 ## Data
@@ -447,6 +448,28 @@ ohl_lmer <- lmer(ppg_21_22 ~ position + ppg_19_20 + drafted + gp_19_20 + age_con
                      data = ohl_filtered)
 summary(ohl_lmer)
 ```
+
+```{r, include = FALSE}
+league_effects <- REsim(ohl_lmer)
+
+league_effects %>%
+  as_tibble() %>%
+  group_by(groupFctr) %>%
+  arrange(desc(mean)) %>%
+  slice(1:5, (n() - 4):n()) %>%
+  ggplot(aes(x = reorder(groupID, mean))) +
+  geom_point(aes(y = mean)) +
+  geom_errorbar(aes(ymin = mean - 2 * sd,
+                    ymax = mean + 2 * sd)) +
+  facet_wrap(~groupFctr, ncol = 1, scales = "free_y") +
+  geom_vline(xintercept = 0, linetype = "dashed",
+             color = "red") +
+  coord_flip() +
+  theme_bw() +
+  labs(title = "League effect sizes")
+plotREsim(league_effects, labs = TRUE)
+```
+
 
 ```{r, include = FALSE}
 # final model choice based on significant terms in non-interaction OLS and interaction OLS

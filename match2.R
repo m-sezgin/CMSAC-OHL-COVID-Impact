@@ -32,7 +32,7 @@ ohl_filtered2 <- ohl_filtered
 
 
 
-# from bart -> make treatment binary
+# from bart -> make treatment binary -- DOESN'T WORK IN THIS CODE
 ohl_filtered2 <- ohl_filtered2 %>% 
   mutate(treatment = ifelse(treatment == "Played", 1, 0),
          treatment = as.integer((treatment)))
@@ -185,6 +185,10 @@ summary(matched_model)
 plot(matched_model, which = 1)
 coeftest(matched_model, vcov. = vcovCL, cluster = ~subclass)
 
+new_match <- lm(ppg_21_22 ~ position + ppg_19_20 + treatment + drafted + 
+                   gp_21_22 + age_continuous + pts_19_20,
+                data = gam_matched)
+
 gam_matched2 <- match.data(gam_propensity_match2)
 matched_model2 <- glm(treatment ~ gp_19_20 + position + 
                         ppg_19_20 + age_continuous + pm_rank_19_20, 
@@ -194,17 +198,6 @@ plot(matched_model2, which = 1)
 coeftest(matched_model2, vcov. = vcovCL, cluster = ~subclass)
 
 # trying "optimal" method
-opt_propensity_match <- 
-  matchit(treatment ~ gp_19_20 + position + pts_19_20 + ppg_19_20 + 
-            age_continuous + pm_rank_19_20, 
-          data = ohl_filtered2, method = "optimal",
-          distance = "gam",
-          replace = FALSE, # do not reuse controls
-          ratio = 1)
-summary(opt_propensity_match)
-# a lot better std. pair dist. than the nearest one
-plot(opt_propensity_match, type = "jitter", interactive = FALSE)
-plot(summary(opt_propensity_match))
 
 opt_propensity_match2 <- 
   matchit(treatment ~ gp_19_20 + position + ppg_19_20 + 
@@ -220,13 +213,6 @@ plot(opt_propensity_match2, type = "jitter", interactive = FALSE)
 plot(summary(opt_propensity_match2))
 
 # optimal matched data
-opt_matched <- match.data(opt_propensity_match)
-matched_opt_model <- glm(treatment ~ gp_19_20 + position + pts_19_20 + 
-                       ppg_19_20 + age_continuous + pm_rank_19_20, 
-                     data = opt_matched, family = "binomial")
-summary(matched_opt_model)
-plot(matched_opt_model, which = 1)
-coeftest(matched_opt_model, vcov. = vcovCL, cluster = ~subclass)
 
 opt_matched2 <- match.data(opt_propensity_match2)
 matched_opt_model2 <- glm(treatment ~ gp_19_20 + position + 
@@ -236,4 +222,48 @@ summary(matched_opt_model2)
 plot(matched_opt_model2, which = 1) 
 # the best of the options
 coeftest(matched_opt_model2, vcov. = vcovCL, cluster = ~subclass)
+
+
+# final optimal model -----------------------------------------------------
+
+opt_propensity_match <- 
+  matchit(treatment ~ gp_19_20 + position + pts_19_20 + ppg_19_20 + 
+            age_continuous + pm_rank_19_20, 
+          data = ohl_filtered2, method = "optimal",
+          distance = "gam",
+          replace = FALSE, # do not reuse controls
+          ratio = 1)
+summary(opt_propensity_match)
+# a lot better std. pair dist. than the nearest one
+plot(opt_propensity_match, type = "jitter", interactive = FALSE)
+plot(summary(opt_propensity_match))
+
+# distribution plots of individual variables
+bal.plot(opt_propensity_match, var.name = "distance")
+bal.plot(opt_propensity_match, var.name = "gp_19_20")
+bal.plot(opt_propensity_match, var.name = "position")
+bal.plot(opt_propensity_match, var.name = "pts_19_20")
+bal.plot(opt_propensity_match, var.name = "ppg_19_20")
+bal.plot(opt_propensity_match, var.name = "age_continuous")
+bal.plot(opt_propensity_match, var.name = "pm_rank_19_20")
+
+# take just matched data
+opt_matched <- match.data(opt_propensity_match)
+matched_opt_model <- glm(treatment ~ gp_19_20 + position + pts_19_20 + 
+                           ppg_19_20 + age_continuous + pm_rank_19_20, 
+                         data = opt_matched, family = "binomial")
+summary(matched_opt_model)
+plot(matched_opt_model, which = 1)
+coeftest(matched_opt_model, vcov. = vcovCL, cluster = ~subclass)
+
+# linear regression
+another_match <- lm(ppg_21_22 ~ position + ppg_19_20 + treatment + 
+                      gp_21_22 + age_continuous + pts_19_20,
+                    data = opt_matched)
+# changed to opt_match_lm 
+summary(another_match)
+coeftest(another_match, vcov. = vcovCL, cluster = ~subclass)
+plot(another_match, which = 1)
+coeftest(matched_opt_model, vcov. = vcovCL, cluster = ~subclass)
+
 

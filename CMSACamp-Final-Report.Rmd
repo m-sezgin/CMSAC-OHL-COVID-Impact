@@ -42,6 +42,15 @@ library(RColorBrewer)
 library(kableExtra)
 library(DHARMa)
 library(merTools)
+library(BART)
+library(tidytreatment)
+library(tidybayes)
+library(MatchIt)
+library(mgcv)
+library(cobalt)
+library(lmtest)
+library(sandwich)
+library(optmatch)
 ```
 
 ## Data
@@ -192,7 +201,7 @@ ohl_filtered %>%
 
 #### Performance
 
-```{r}
+```{r, fig.align = 'center'}
 # distribution of response
 ggplot(ohl_filtered, aes(x = ppg_21_22)) +
   geom_density() +
@@ -216,7 +225,7 @@ ggplot(ohl_filtered, aes(x = ppg_21_22, color = treatment)) +
 
 #### Age vs Performance
 
-```{r}
+```{r, fig.align = 'center'}
 # age vs ppg
 ggplot(ohl_filtered, aes(x = age_continuous, y = ppg_21_22)) +
   geom_point(alpha = .5) +
@@ -228,7 +237,7 @@ ggplot(ohl_filtered, aes(x = age_continuous, y = ppg_21_22)) +
 
 #### GP vs Performance
 
-```{r}
+```{r, fig.align = 'center'}
 # gp vs ppg
 ggplot(ohl_filtered, aes(x = gp_21_22, y = ppg_21_22)) +
   geom_point(alpha = .5) +
@@ -241,7 +250,7 @@ ggplot(ohl_filtered, aes(x = gp_21_22, y = ppg_21_22)) +
 
 #### Drafted vs Performance
 
-```{r}
+```{r, fig.align = 'center'}
 # drafted vs ppg
 ggplot(ohl_filtered) +
   geom_density(aes(x = ppg_21_22, color = drafted)) +
@@ -254,7 +263,7 @@ ggplot(ohl_filtered) +
 
 #### Player Quality vs Performance
 
-```{r}
+```{r, fig.align = 'center'}
 # ppg 2019-20 vs ppg 21-22
 ggplot(ohl_filtered, aes(x = ppg_19_20, y = ppg_21_22)) +
   geom_point(alpha = .5) +
@@ -267,7 +276,7 @@ ggplot(ohl_filtered, aes(x = ppg_19_20, y = ppg_21_22)) +
 
 #### Position vs PPG
 
-```{r}
+```{r, fig.align = 'center'}
 # position vs ppg
 ggplot(ohl_filtered) +
   geom_density(aes(x = ppg_21_22, color = position)) +
@@ -294,7 +303,7 @@ mosaicplot(table("Drafted" = ohl_filtered$drafted,
 
 #### Player Quality vs Treatment
 
-```{r}
+```{r, fig.align = 'center'}
 # pm vs treatment
 ggplot(ohl_filtered, aes(x = ppg_19_20, color = treatment)) +
   geom_density() +
@@ -307,7 +316,7 @@ ggplot(ohl_filtered, aes(x = ppg_19_20, color = treatment)) +
 
 #### Age vs Treatment
 
-```{r}
+```{r, fig.align = 'center'}
 # age vs treatment
 ggplot(ohl_filtered, aes(x = age_continuous, color = treatment)) +
   geom_density() +
@@ -320,7 +329,7 @@ ggplot(ohl_filtered, aes(x = age_continuous, color = treatment)) +
 
 #### GP vs Treatment
 
-```{r}
+```{r, fig.align = 'center'}
 # gp vs treatment
 ggplot(ohl_filtered, aes(x = gp_19_20, color = treatment)) +
   geom_density() +
@@ -337,7 +346,7 @@ ggplot(ohl_filtered, aes(x = gp_19_20, color = treatment)) +
 
 #### Age vs Player Quality
 
-```{r}
+```{r, fig.align = 'center'}
 ggplot(ohl_filtered, aes(x = age_continuous, y = ppg_19_20)) +
   geom_point(alpha = .5) +
   labs(title = "Positive linear relationship between player quality and age",
@@ -350,7 +359,7 @@ ggplot(ohl_filtered, aes(x = age_continuous, y = ppg_19_20)) +
 
 #### Age vs Drafted
 
-```{r}
+```{r, fig.align = 'center'}
 ggplot(ohl_filtered, aes(x = age_continuous, color = drafted)) +
   geom_density() +
   labs(title = "Drafted players younger",
@@ -361,7 +370,7 @@ ggplot(ohl_filtered, aes(x = age_continuous, color = drafted)) +
 
 #### Position vs Player Quality
 
-```{r}
+```{r, fig.align = 'center'}
 ggplot(ohl_filtered, aes(x = ppg_19_20, color = position)) +
   geom_density() +
   labs(title = "Forwards more likely to be \"quality\" players",
@@ -399,7 +408,8 @@ __Ordinary Least Squares (OLS)__ : We fit OLS without interaction, because this 
 
 **Mixed-effects Model** : Lastly, we fit a mixed-effects model to determine if the effect of playing during the COVID season was significantly different across leagues. We let the slope and intercept of the regression line vary according to the league, with players who didn't play during the COVID season all grouped into a league called "NONE".
 
-### Causal Analysis
+### Causal Analysis:
+
 
 
 ```{r, include = FALSE}
@@ -476,6 +486,149 @@ plotREsim(league_effects, labs = TRUE)
 ohl_mlr_final <- lm(ppg_21_22 ~ position + ppg_19_20 + treatment + pts_19_20 + gp_21_22 + age_continuous, data = ohl_filtered)
 #summary(ohl_mlr_final)
 ```
+
+#### Propensity Score Matching
+
+The first match we tried was using the nearest neighbor method. This approach does not optimize criterion, so we switched to optimal pair matching. The absolute within-pair difference of each covariate was smaller in the optimal match, hence being better balanced. 
+
+```{r prop-score-data, include=FALSE}
+# load data
+ohl_filtered_m <- ohl_filtered
+
+ohl_filtered_m <- ohl_filtered %>% 
+  mutate(got_drafted = case_when(!is.na(draft_year) & draft_year < 2020
+                                 ~ 'Yes',
+                                 TRUE ~ 'No'))
+
+ohl_filtered2 <- ohl_filtered_m
+ohl_filtered2 <- ohl_filtered %>% 
+  mutate(treatment = case_when(treatment == "Played" ~ 1,
+                               treatment == "Didn't Play" ~ 0))
+```
+
+```{r opt_propensity, fig.align='center'}
+opt_propensity_match <- 
+  matchit(treatment ~ gp_19_20 + position + pts_19_20 + ppg_19_20 + 
+            age_continuous + pm_rank_19_20, 
+          data = ohl_filtered2, method = "optimal",
+          distance = "gam",
+          replace = FALSE, # do not reuse controls
+          ratio = 1)
+plot(opt_propensity_match, type = "jitter", interactive = FALSE)
+```
+
+The following plot was fit using only the matched data. 
+
+```{r lm_opt_prop, fig.align='center'}
+opt_matched <- match.data(opt_propensity_match)
+
+opt_match_lm <- lm(ppg_21_22 ~ position + ppg_19_20 + treatment + 
+                      gp_21_22 + age_continuous + pts_19_20,
+                    data = opt_matched)
+
+plot(opt_match_lm, which = 1)
+```
+
+FIX - ADD
+add in distribution plots
+
+#### Fitting Bayesian Additive Regression Trees to Observe Treatment Effects
+
+```{r bart-data, include = FALSE}
+ohl_filtered_b <- ohl_filtered
+
+ohl_filtered_b <- ohl_filtered_b %>% 
+  mutate(got_drafted = case_when(!is.na(draft_year) & draft_year < 2020
+                                 ~ 'Yes',
+                                 TRUE ~ 'No'))
+
+# convert treatment to binary indicator:
+ohl_update <- ohl_filtered_b %>% 
+  mutate(treatment = ifelse(treatment == "Played", 1, 0),
+         treatment = as.integer((treatment)))
+
+# convert categorical variables to binary
+ohl_update <- ohl_update %>% 
+  mutate(is_forward = case_when(position == "F" ~ 1, 
+                                position == "D" ~ 0)) %>% 
+  mutate(is_drafted = case_when(got_drafted == "Yes" ~ 1,
+                                got_drafted == "No" ~ 0)) %>% 
+  mutate(s_played = case_when(season == "2021-2022" ~ 1,
+                              season == "2019-2020" ~ 0)) %>% 
+  as.data.frame()
+
+# load rds files
+var_select_bart <- readRDS("var_select_bart.rds")
+prop_bart <- readRDS("prop_bart.rds")
+te_model <- readRDS("te_model.rds")
+```
+
+```{r fit_bart_reg_model}
+# fit variable selection model
+# var_select_bart
+
+# variable selection
+covar_ranking <- covariate_importance(var_select_bart)
+var_select <- covar_ranking %>% 
+  filter(avg_inclusion >= quantile(avg_inclusion, 0.5)) %>% 
+  pull(variable)
+
+# fit a propensity score model
+# prop_bart
+
+# store propensity score in data
+ohl_update$prop_score <- prop_bart$prob.train.mean
+
+# fit the treatment effect model
+# te_model
+```
+
+```{r extract-posterior, include=FALSE}
+# extract the posterior
+posterior_fitted <- fitted_draws(te_model, value = "fit",
+                                 include_newdata = FALSE)
+posterior_fitted
+
+# function to tidy predicted draws and add random normal noise by default
+posterior_pred <- predicted_draws(te_model, include_newdata = FALSE)
+```
+
+?? include tidybayes plot?
+
+#### Treatment Effects {.tabset}
+
+```{r calc-treat-ef, include = FALSE}
+# sample based (using data from fit) conditional treatment effects,
+# posterior draws
+posterior_treat_eff <- 
+  treatment_effects(te_model, treatment = "treatment",
+                    # the dataset here needs to match the BART data EXACTLY
+                    # which is really annoying...
+                    newdata = dplyr::select(ohl_update, gp_19_20, pts_19_20, 
+                                     age_continuous, pm_relative_19_20, 
+                                     pm_rank_19_20, pm_19_20, is_forward, 
+                                     is_drafted, treatment, prop_score))
+```
+
+##### All Draws
+```{r, trt_ef_all, message = FALSE, warning = FALSE, fig.align = 'center'}
+# histogram of treatment effect (all draws)
+posterior_treat_eff %>% 
+  ggplot() +
+  geom_histogram(aes(x = cte), bins = 50, color = "white") +
+  theme_bw() + ggtitle("Histogram of treatment effect (all draws)")
+```
+
+##### Mean For Each Subject
+```{r trt_ef_sub, message = FALSE, warning = FALSE, fig.align = 'center'}
+# histogram of treatment effect (mean for each subject)
+posterior_treat_eff %>% summarise(cte_hat = mean(cte)) %>%
+  ggplot() +
+  geom_histogram(aes(x = cte_hat), bins = 60, colour = "white") + 
+  theme_bw() + 
+  ggtitle("Histogram of treatment effect (median for each subject)")
+```
+
 
 ## Results
 

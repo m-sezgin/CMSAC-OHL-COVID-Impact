@@ -268,4 +268,10 @@ coeftest(another_match, vcov. = vcovCL, cluster = ~subclass)
 plot(another_match, which = 1)
 coeftest(matched_opt_model, vcov. = vcovCL, cluster = ~subclass)
 
+# take out points
+another_match2 <- lm(ppg_21_22 ~ position + ppg_19_20 + treatment + 
+                      gp_21_22 + age_continuous,
+                    data = opt_matched)
+summary(another_match2)
+plot(another_match2, which = 1)
 

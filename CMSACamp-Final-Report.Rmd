@@ -569,7 +569,7 @@ bal.plot(opt_propensity_match, var.name = "pts_19_20",
 ##### Points Per Game
 
 ```{r opt_ppg, fig.align='center'}
-bal.plot(opt_propensity_match, var.name = "distance",
+bal.plot(opt_propensity_match, var.name = "ppg_19_20",
          colors = c("goldenrod1", "dodgerblue"))
 ```
 
@@ -590,6 +590,8 @@ bal.plot(opt_propensity_match, var.name = "pm_rank_19_20",
 #### {-}
 
 #### Fitting Bayesian Additive Regression Trees to Observe Treatment Effects
+
+An appeal of BART is that it controls overfitting, which is one issue with normal additive regression trees. Each tree tries to account for something new in the model. Once all added, accurate estimates are produced. This allows for causal inferences to be drawn.
 
 ```{r bart-data, include = FALSE}
 ohl_filtered_b <- ohl_filtered
@@ -672,6 +674,7 @@ posterior_treat_eff <-
 posterior_treat_eff %>% 
   ggplot() +
   geom_histogram(aes(x = cte), bins = 50, color = "white") +
+  geom_vline(xintercept = 0, color = "red", size = 1) +
   theme_bw() + ggtitle("Histogram of treatment effect (all draws)")
 ```
 
@@ -682,6 +685,7 @@ posterior_treat_eff %>%
 posterior_treat_eff %>% summarise(cte_hat = mean(cte)) %>%
   ggplot() +
   geom_histogram(aes(x = cte_hat), bins = 60, colour = "white") + 
+  geom_vline(xintercept = 0, color = "red", size = 1) +
   theme_bw() + 
   ggtitle("Histogram of treatment effect (mean for each subject)")
 ```
@@ -705,6 +709,71 @@ posterior_treat_eff %>% dplyr::select(-treatment) %>% point_interval() %>%
 
 #### {-}
 
+<<<<<<< HEAD
+=======
+## Results
+
+The most appropriate regression model fit was OLS regression. The model explained approximately 59% of the variance in the data without sacrificing interpretability. Interaction OLS regression only marginally increased the variance explained and was not significantly different from OLS regression. Conditions for inference for both of these models were mostly met. Though Gamma regression fit the data well, the model conditions for inference were not met (the residuals were not gamma-distributed). Lastly, it was found that the effect of playing during COVID did not significantly differ across leagues in our mixed-effects model, so the extra complexity of the model was deemed unnecessary.
+
+#### The results of the OLS regression model are as follows:
+
+\(\widehat{\text{Player Performance}} = 0.901 + 0.0655*\text{Treatment} + 0.188*\text{Forward} +  0.862*\text{Player Quality} +  0.00559*\text{Games Played Post-COVID}\\- 0.0556*\text{Age} \)
+
+```{r, fig.align='center'}
+ohl_filtered %>%
+  mutate(pred_vals = predict(ohl_mlr_final)) %>%
+  ggplot(aes(x = pred_vals,
+             y = ppg_21_22)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(slope = 1, intercept = 0,
+              linetype = "dashed",
+              color = "red",
+              size = 2) +
+  theme_bw() +
+  labs(title = "Model fit: Actual PPG in post-COVID season vs predicted PPG in\npost-COVID season",
+       x = "Predicted PPG in post-COVID season",
+       y = "Actual PPG in Post-COVID Season")
+```
+
+* Coefficients for position, points in pre-COVID season, games played in post-COVID season, and age were all found to be statistically significant from 0 at the \(\alpha = 0.05\) level.
+
+* The model explains approximately 59% of the variation in player performance in the post-COVID season, which is a statistically significant amount at the \(\alpha = .001\) level \(F(5, 213) = 62.78, p<.001\).
+
+```{r, include = FALSE}
+confint(ohl_mlr_final)
+```
+
+```{r, include = FALSE}
+# It was found that the effect of playing during COVID did significantly differ across leagues in our mixed-effects model, with the treatment effect being significantly different from zero (postive treatment effect) for the U18 World Junior Championships, Swiss League, and Hockeyettan.
+league_effects <- REsim(ohl_lmer)
+
+league_effects %>%
+  as_tibble() %>%
+  group_by(groupFctr) %>%
+  arrange(desc(mean)) %>%
+  slice(1:5, (n() - 4):n()) %>%
+  ggplot(aes(x = reorder(groupID, mean))) +
+  geom_point(aes(y = mean)) +
+  geom_errorbar(aes(ymin = mean - 2 * sd,
+                    ymax = mean + 2 * sd)) +
+  facet_wrap(~groupFctr, ncol = 1, scales = "free_y") +
+  geom_vline(xintercept = 0, linetype = "dashed",
+             color = "red") +
+  coord_flip() +
+  theme_bw() +
+  labs(title = "League effect sizes")
+plotREsim(league_effects, labs = TRUE)
+```
+
+#### Propensity Scores
+
+After selecting the linear regression model, we matched the data and refit the model to see if this affected the treatment impact. At alpha = 0.01, the position, age, and points variables were significant. There is no evidence that treatment is significant in the matched model.
+
+#### BART
+
+
+
+>>>>>>> 513bf4021cb537e12120e260d130a39d86991c6f
 ## Discussion
 
 #### OLS Regression Model Interpretation

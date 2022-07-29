@@ -166,6 +166,9 @@ posterior_treat_eff %>% summarise(cte_hat = mean(cte)) %>%
   theme_bw() + 
   ggtitle("Histogram of treatment effect (median for each subject)")
 
+cate_find <- posterior_treat_eff %>% 
+  mutate(cte_hat = mean(cte))
+
 # get the ATE and ATT directly:
 posterior_ate <- tidy_ate(te_model, treatment = "treatment", 
                           newdata = ohl_update)

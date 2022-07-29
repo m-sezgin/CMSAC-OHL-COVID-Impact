@@ -233,7 +233,7 @@ opt_propensity_match <-
           distance = "gam",
           replace = FALSE, # do not reuse controls
           ratio = 1)
-summary(opt_propensity_match) %>% View()
+summary(opt_propensity_match)
 # a lot better std. pair dist. than the nearest one
 plot(opt_propensity_match, type = "jitter", interactive = FALSE)
 plot(summary(opt_propensity_match))
@@ -274,4 +274,11 @@ another_match2 <- lm(ppg_21_22 ~ position + ppg_19_20 + treatment +
                     data = opt_matched)
 summary(another_match2)
 plot(another_match2, which = 1)
+
+
+recent %>% filter(name == "Shane Wright") %>% View()
+recent %>% filter(name == "Brandt Clarke") %>% View()
+
+
+
 

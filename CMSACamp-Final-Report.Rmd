@@ -588,7 +588,7 @@ bal.plot(opt_propensity_match, var.name = "pts_19_20",
 
 ##### Points Per Game
 ```{r opt_ppg, fig.align='center'}
-bal.plot(opt_propensity_match, var.name = "distance",
+bal.plot(opt_propensity_match, var.name = "ppg_19_20",
          colors = c("goldenrod1", "dodgerblue"))
 ```
 
@@ -607,6 +607,8 @@ bal.plot(opt_propensity_match, var.name = "pm_rank_19_20",
 #### {-}
 
 #### Fitting Bayesian Additive Regression Trees to Observe Treatment Effects
+
+An appeal of BART is that it controls overfitting, which is one issue with normal additive regression trees. Each tree tries to account for something new in the model. Once all added, accurate estimates are produced. This allows for causal inferences to be drawn.
 
 ```{r bart-data, include = FALSE}
 ohl_filtered_b <- ohl_filtered
@@ -689,6 +691,7 @@ posterior_treat_eff <-
 posterior_treat_eff %>% 
   ggplot() +
   geom_histogram(aes(x = cte), bins = 50, color = "white") +
+  geom_vline(xintercept = 0, color = "red", size = 1) +
   theme_bw() + ggtitle("Histogram of treatment effect (all draws)")
 ```
 
@@ -699,6 +702,7 @@ posterior_treat_eff %>%
 posterior_treat_eff %>% summarise(cte_hat = mean(cte)) %>%
   ggplot() +
   geom_histogram(aes(x = cte_hat), bins = 60, colour = "white") + 
+  geom_vline(xintercept = 0, color = "red", size = 1) +
   theme_bw() + 
   ggtitle("Histogram of treatment effect (mean for each subject)")
 ```
@@ -775,6 +779,14 @@ league_effects %>%
   labs(title = "League effect sizes")
 plotREsim(league_effects, labs = TRUE)
 ```
+
+#### Propensity Scores
+
+After selecting the linear regression model, we matched the data and refit the model to see if this affected the treatment impact. At alpha = 0.01, the position, age, and points variables were significant. There is no evidence that treatment is significant in the matched model.
+
+#### BART
+
+
 
 ## Discussion
 

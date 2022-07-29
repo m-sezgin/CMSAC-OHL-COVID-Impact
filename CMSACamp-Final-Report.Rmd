@@ -171,8 +171,8 @@ The data was was sourced from Elite Prospects and was supplied by our external a
 ohl %>% 
   dplyr::select(name, team_name, season, league, position, 
                 gp, g, a, pts, pm) %>%
-  filter(name == "Brett Harrison") %>%
-  arrange(season) %>% 
+  filter(name == "Shane Wright") %>%
+  arrange(desc(name)) %>% 
   knitr::kable() %>% 
   kable_styling("striped")
 ```
@@ -204,21 +204,19 @@ ohl %>%
 
 ```{r}
 ohl_filtered %>% 
-  dplyr::select(first_name, last_name, position, ppg_19_20,
-                gp_21_22, pts_21_22, ppg_21_22) %>%
-  head(6) %>%
+  dplyr::select(first_name, last_name, position, drafted, ppg_19_20,
+                gp_21_22, age_continuous, treatment, ppg_21_22) %>%
+  filter(first_name %in% c("Shane","Brandt", "Logan", "Wyatt") & last_name %in% c("Wright", "Clarke", "Mailloux", "Johnston")) %>%
+  arrange(desc(last_name)) %>%
   knitr::kable() %>% 
   kable_styling("striped")
 ```
 
-
 ## Exploratory Data Analysis
 
-### Response: Player Performance Post-COVID Season {.tabset}
+#### Player Performance
 
-#### Performance
-
-```{r, fig.align = 'center'}
+```{r, fig.align = 'center', fig.cap = "Distribution of player performance is right-skewed"}
 # distribution of response
 ggplot(ohl_filtered, aes(x = ppg_21_22)) +
   geom_density(color = "royalblue3") +
@@ -233,53 +231,78 @@ ggplot(ohl_filtered, aes(x = ppg_21_22)) +
 # treatment vs ppg
 ggplot(ohl_filtered, aes(x = ppg_21_22, color = treatment)) +
   geom_density() +
-  labs(title = "Players who played during COVID season generally had higher PPG in\n2021-22 season",
+  labs(title = "Players who played during COVID season generally had higher PPG in\npost-COVID season",
        x = "Player Performance (PPG Post-COVID Season)",
        color = "COVID season") +
   scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
 ```
 
-#### Age vs Performance
+### Possible Confounding Variables for Treatment and Response {.tabset}
+
+#### Age
 
 ```{r, fig.align = 'center'}
 # age vs ppg
 ggplot(ohl_filtered, aes(x = age_continuous, y = ppg_21_22)) +
   geom_point(alpha = .5) +
-  labs(title = "No strong observable relationship between player performance and age",
-       x = "Age pre-COVID",
+  labs(title = "Weak, slightly positive relationship between player performance and age",
+       x = "Age in Pre-COVID Season",
        y = "Player Performance (PPG Post-COVID Season)") +
   theme_bw() +
-  geom_smooth(method = "lm")
+  geom_smooth(method = "lm") 
+
+# age vs treatment
+ggplot(ohl_filtered, aes(x = age_continuous, color = treatment)) +
+  geom_density() +
+  labs(title = "More 17- and 18-year-olds played during COVID season",
+       x = "Age in Pre-COVID Season",
+       color = "COVID Season") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
+  theme_bw() 
 ```
 
-#### GP vs Performance
+#### GP
 
 ```{r, fig.align = 'center'}
 # gp vs ppg
 ggplot(ohl_filtered, aes(x = gp_21_22, y = ppg_21_22)) +
   geom_point(alpha = .5) +
-  labs(title = "Positive linear relationship between player performance and GP in \n2021-22 season",
-       x = "GP in 2021-22 Season", 
+  labs(title = "Positive linear relationship between player performance and GP in \npost-COVID season",
+       x = "GP in Post-COVID Season", 
        y = "Player Performance (PPG Post-COVID Season)") +
   theme_bw() +
   geom_smooth(method = "lm")
+
+ggplot(ohl_filtered, aes(x = gp_21_22, color = treatment)) +
+  geom_density() +
+  labs(title = "Skaters who played during COVID season played more games\nin post-COVID season",
+       x = "GP in Post-COVID Season",
+       color = "COVID Season") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
+  theme_bw() 
 ```
 
-#### Drafted vs Performance
+#### Drafted
 
 ```{r, fig.align = 'center'}
 # drafted vs ppg
 ggplot(ohl_filtered) +
   geom_density(aes(x = ppg_21_22, color = drafted)) +
-  labs(title = "Post-covid season player performance generally greater for drafted players",
-       x = "Player Performance (PPG Post-COVID Season)",
+  labs(title = "Post-COVID season player performance generally greater for drafted players",
+       x = "Player Performance (PPG in Post-COVID Season)",
        color = "Drafted") +
   scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
+
+# drafted status vs treatment
+mosaicplot(table("Drafted" = ohl_filtered$drafted,
+                 "COVID Season" = ohl_filtered$treatment),
+           main = "Drafted players more likely to have played during COVID season",
+           shade = TRUE)
 ```
 
-#### Player Quality vs Performance
+#### Player Quality
 
 ```{r, fig.align = 'center'}
 # ppg 2019-20 vs ppg 21-22
@@ -290,124 +313,33 @@ ggplot(ohl_filtered, aes(x = ppg_19_20, y = ppg_21_22)) +
        y = "Player Performance (PPG Post-COVID Season)") +
   geom_smooth(method = "lm") +
   theme_bw()
+
+ggplot(ohl_filtered, aes(x = ppg_19_20, color = treatment)) +
+  geom_density() +
+  labs(title = "Skaters who played during COVID season were higher quality players",
+       x = "Player Quality (PPG in Pre-COVID Season)",
+       color = "COVID Season") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
+  theme_bw()
 ```
 
-#### Position vs PPG
+#### Position
 
 ```{r, fig.align = 'center'}
 # position vs ppg
 ggplot(ohl_filtered) +
   geom_density(aes(x = ppg_21_22, color = position)) +
   labs(title = "Post-COVID season player performance generally greater for forwards",
-       x = "Player Performance (PPG Post-COVID Season)",
+       x = "Player Performance (PPG in Post-COVID Season)",
        color = "Position") +
   scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
   theme_bw()
-```
 
-### {-}
-
-### Treatment {.tabset}
-
-#### Drafted vs Treatment
-
-```{r, fig.align='center'}
-# drafted status vs treatment
-mosaicplot(table("Drafted" = ohl_filtered$drafted,
+# position vs treatment
+mosaicplot(table("Position" = ohl_filtered$position,
                  "COVID Season" = ohl_filtered$treatment),
-           main = "Drafted players more likely to have played during COVID season",
+           main = "Player position does not significantly influence probability\nof playing during COVID Season",
            shade = TRUE)
-```
-
-#### Player Quality vs Treatment
-
-```{r, fig.align = 'center'}
-# pm vs treatment
-ggplot(ohl_filtered, aes(x = ppg_19_20, color = treatment)) +
-  geom_density() +
-  labs(title = "Better quality players more likely to have played during COVID season", 
-       x = "Player Quality (PPG in pre-COVID season)",
-       color = "COVID Season") +
-  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
-  theme_bw()
-```
-
-#### Age vs Treatment
-
-```{r, fig.align = 'center'}
-# age vs treatment
-ggplot(ohl_filtered, aes(x = age_continuous, color = treatment)) +
-  geom_density() +
-  labs(title = "Slight difference in age for players who played during COVID season and players who did not", 
-       x = "Age pre-COVID",
-       color = "COVID Season") +
-  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
-  theme_bw()
-```
-
-#### GP vs Treatment
-
-```{r, fig.align = 'center'}
-# gp vs treatment
-ggplot(ohl_filtered, aes(x = gp_19_20, color = treatment)) +
-  geom_density() +
-  labs(title = "Players who played during COVID season played more games\nin pre-COVID season", 
-       x = "GP in Pre-COVID Season",
-       color = "COVID season") +
-  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
-  theme_bw()
-```
-
-### {-}
-
-### Explanatory Variable Relationships {.tabset}
-
-#### Age vs Player Quality
-
-```{r, fig.align = 'center'}
-ggplot(ohl_filtered, aes(x = age_continuous, y = ppg_19_20)) +
-  geom_point(alpha = .5) +
-  labs(title = "Positive linear relationship between player quality and age",
-       x = "Age pre-COVID",
-       y = "Player Quality (PPG pre-COVID season)") +
-  theme_bw() +
-  geom_smooth(method = "lm")
-```
-
-
-#### Age vs Drafted
-
-```{r, fig.align = 'center'}
-ggplot(ohl_filtered, aes(x = age_continuous, color = drafted)) +
-  geom_density() +
-  labs(title = "Drafted players younger",
-       x = "Age pre-COVID") +
-  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
-  theme_bw()
-```
-
-#### Position vs Player Quality
-
-```{r, fig.align = 'center'}
-ggplot(ohl_filtered, aes(x = ppg_19_20, color = position)) +
-  geom_density() +
-  labs(title = "Forwards more likely to be \"quality\" players",
-       x = "Player Quality (PPG pre-COVID Season)",
-       color = "Position") +
-  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
-  theme_bw()
-```
-
-#### 2019-20 GP vs Player Quality
-
-```{r}
-ggplot(ohl_filtered, aes(x = gp_19_20, y = ppg_19_20)) +
-  geom_point(alpha = .5) +
-  geom_smooth() +
-  labs(title = "Player quality increases non-linearly with GP pre-COVID season",
-       x = "GP in Pre-COVID Season",
-       y = "Player Quality (PPG pre-COVID Season)") +
-  theme_bw()
 ```
 
 ### {-}
@@ -425,8 +357,6 @@ __Ordinary Least Squares (OLS)__ : We fit OLS without interaction, because this 
 **Gamma** : PPG is right skewed and bounded between 0 and some positive number, so we believed PPG may be Gamma-distributed. We performed Gamma regression with the log link function to see if this would more accurately model the relationship between our response and explanatory variables.
 
 **Mixed-effects Model** : Lastly, we fit a mixed-effects model to determine if the effect of playing during the COVID season was significantly different across leagues. We let the slope and intercept of the regression line vary according to the league, with players who didn't play during the COVID season all grouped into a league called "NONE".
-
-### Causal Analysis
 
 ```{r, include = FALSE}
 # Basic OLS Regression
@@ -501,6 +431,8 @@ plotREsim(league_effects, labs = TRUE)
 ohl_mlr_final <- lm(ppg_21_22 ~ position + treatment + ppg_19_20 + gp_21_22 + age_continuous, data = ohl_filtered)
 summary(ohl_mlr_final)
 ```
+
+### Causal Analysis
 
 #### Propensity Score Matching
 

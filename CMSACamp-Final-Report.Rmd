@@ -55,9 +55,61 @@ library(lme4)
 ## Data
 
 ```{r, include = FALSE}
+# data wrangling
+
 ohl <- read_csv("sams_ohl_data_request.csv")
 
-# Create df of players who played during covid w total gp and if they played championship
+ohl_19_20 <- ohl %>% 
+  filter(season == "2019-2020", league == "OHL") %>%
+  group_by(player_id, season) %>%
+  summarize(pts_19 = sum(pts), gp_19 = sum(gp), teams = n()) %>%
+  ungroup()
+  
+ohl_21_22 <- ohl %>% 
+  filter(season == "2021-2022", league == "OHL") %>%
+  group_by(player_id, season) %>%
+  summarize(pts_21 = sum(pts), gp_21 = sum(gp), teams = n(),) %>%
+  ungroup()
+
+ohl_filtered <- inner_join(ohl_19_20, ohl_21_22, by = "player_id")
+
+ohl_filtered <- ohl_filtered %>%
+  mutate(ppg_19 = pts_19/gp_19,
+         ppg_21 = pts_21/gp_21)
+
+ohl_age_pos <- ohl %>%
+  filter(league == "OHL", season %in% c("2019-2020", "2021-2022")) %>%
+  group_by(player_id) %>%
+  mutate(age = trunc((dob %--% as.Date("2020-01-01")) / years(1)),
+         age_continuous = (dob %--% as.Date("2020-01-01")) / years(1),
+         drafted = ifelse(is.na(draft_year), "No", "Yes"),
+         drafted_19 = ifelse(!is.na(draft_year) & draft_year < 2020, "Yes", "No")
+  ) %>%
+  ungroup() %>%
+  dplyr::select(player_id, age_continuous, position, drafted, drafted_19) %>%
+  filter(duplicated(player_id) == FALSE)
+
+ohl_filtered <- left_join(ohl_filtered, ohl_age_pos, by = c("player_id"))
+
+ohl_pm <- ohl %>%
+  filter(season == "2019-2020", league == "OHL") %>%
+  group_by(team_name) %>%
+  arrange(team_name, desc(pm)) %>%
+  mutate(pm_rank_19 = 1:n(),
+         pm_relative_19 = pm - mean(pm),
+         pm_19 = pm
+  ) %>%
+  ungroup() %>%
+  group_by(player_id) %>%
+  mutate(pm_rank_19 = mean(pm_rank_19),
+         pm_relative_19 = mean(pm_relative_19),
+         pm_19 = mean(pm_19)) %>%
+  filter(duplicated(player_id) == FALSE) %>%
+  ungroup() %>%
+  dplyr::select(player_id, pm_rank_19, pm_relative_19, pm_19)
+
+ohl_filtered <- left_join(ohl_filtered, ohl_pm, by = c("player_id"))
+
 ohl_treatment_prep <- ohl %>%
   filter(season == "2020-2021") %>%
   group_by(player_id) %>%
@@ -69,96 +121,19 @@ ohl_treatment_prep <- ohl %>%
   dplyr::select(player_id, gp_covid, championship, covid_league) %>%
   filter(duplicated(player_id) == FALSE)
 
-# Compute player quality vars using pm
-ohl_pm <- ohl %>%
-  filter(season == "2019-2020", league == "OHL") %>%
-  group_by(team_name) %>%
-  arrange(team_name, desc(pm)) %>%
-  mutate(pm_rank_19_20 = 1:n(),
-         pm_relative_19_20 = pm - mean(pm),
-         pm_19_20 = pm
-  ) %>%
-  ungroup() %>%
-  dplyr::select(player_id, team_name, pm_rank_19_20, pm_relative_19_20, pm_19_20)
+ohl_filtered <- left_join(ohl_filtered, ohl_treatment_prep)
 
-# We need to check that each player played in the OHL in 2019-2020 and 2021-2022
-ohl_szn <- ohl %>%
-  filter(season %in% c("2019-2020", "2021-2022"), league == "OHL") %>%
-  group_by(player_id) %>%
-  mutate(played_2019 = season == "2019-2020",
-         played_2021 = season == "2021-2022",
-         played_both_szn = sum(played_2019) & sum(played_2021)) %>%
-  ungroup() %>%
-  filter(played_both_szn == TRUE)
-  
-ohl_21_22_ppg <- ohl_szn %>%
-  filter(season == "2021-2022") %>%
-  group_by(player_id) %>%
-  filter(duplicated(player_id) == FALSE) %>%
-  mutate(ppg_21_22 = sum(pts)/sum(gp),
-         pts_21_22 = sum(pts),
-         gp_21_22 = sum(gp)) %>%
-  ungroup() %>%
-  mutate(ppg_21_22_z = (ppg_21_22 - mean(ppg_21_22))/sd(ppg_21_22)) %>%
-  group_by(team_name) %>%
-  arrange(team_name, desc(pm)) %>%
-  mutate(pm_rank_21_22 = 1:n(),
-         pm_relative_21_22 = pm - mean(pm)
-  ) %>%
-  ungroup() %>%
-  dplyr::select(player_id, ppg_21_22, pts_21_22, gp_21_22, pm_rank_21_22, pm_relative_21_22, ppg_21_22_z)
-
-# Add treatment vars and pm
-ohl_treatment <- ohl_szn %>%
-  filter(season == "2019-2020") %>%
-  left_join(ohl_treatment_prep, by = "player_id") %>%
-  left_join(ohl_pm, by = c("player_id", "team_name")) %>%
-  replace_na(list(gp_covid = 0, championship = FALSE))
-
-# add age variable
-ohl_age <- ohl_treatment %>%
-  group_by(player_id) %>%
-  mutate(age = trunc((dob %--% as.Date("2020-01-01")) / years(1)),
-         age_continuous = (dob %--% as.Date("2020-01-01")) / years(1)
-  ) %>%
-  ungroup()
-
-# summarizing variables, adding player performance as ppg
-ohl_performance <- ohl_age %>%
-  group_by(player_id) %>%
-  mutate(ppg_19_20 = sum(pts)/sum(gp),
-         gp_19_20 = sum(gp),
-         pts_19_20 = sum(pts),
-         treatment = ifelse(gp_covid > 0, "Played", "Didn't Play")
-  ) %>%
-  ungroup() %>%
-  mutate(ppg_19_20_z = (ppg_19_20 - mean(ppg_19_20))/sd(ppg_19_20)) %>%
-  group_by(team_name) %>%
-  arrange(team_name, desc(pm)) %>%
-  mutate(pm_rank_19_20 = 1:n(),
-         pm_relative_19_20 = pm - mean(pm)
-  ) %>%
-  ungroup() %>%
-  group_by(player_id) %>%
-  arrange(player_id, season) %>%
-  filter(duplicated(player_id) == FALSE) %>%
-  ungroup()
-
-# were they drafted?
-ohl_drafted <- ohl_performance %>%
-  mutate(drafted = case_when(draft_year != 2021 ~ TRUE,
-                             draft_year == NA ~ FALSE,
-                             TRUE ~ FALSE))
-
-# add 2021 ppg
-ohl_filtered <- ohl_drafted %>%
-  left_join(ohl_21_22_ppg, by = "player_id")
-
-# clean up
 ohl_filtered <- ohl_filtered %>%
-  dplyr::select(season, player_id, championship, gp_19_20, first_name, last_name, position, age, gp_19_20, pts_19_20, ppg_19_20, drafted, draft_year, round, overall_pick_num, age_continuous, pm_relative_19_20, pm_rank_19_20, pm_rank_21_22, pm_relative_21_22, treatment, ppg_21_22, gp_covid, gp_21_22, covid_league, pts_21_22, ppg_19_20_z, ppg_21_22_z, pm_19_20)
-```
+  mutate(covid_league = replace(covid_league, is.na(covid_league), "NONE"),
+         gp_covid = replace(gp_covid, is.na(gp_covid), 0),
+         treatment = ifelse(gp_covid == 0, "Didn't Play", "Played"))
 
+ohl_names <- ohl %>%
+  dplyr::select(last_name, first_name, player_id) %>%
+  filter(duplicated(player_id) == FALSE)
+
+ohl_filtered <- left_join(ohl_filtered, ohl_names, by = "player_id")
+```
 
 Our dataset is comprised of players who played in the Ontario Hockey League (OHL) during both the pre-COVID (2019-2020) and post-COVID (2021-2022) seasons. The dataset also includes information regarding other leagues they have played in during their career. There is information regarding season, team, league, points, games played, position, and drafted status. Each row is a player on a certain team in a specific season.
 
@@ -205,8 +180,8 @@ ohl %>%
 
 ```{r}
 ohl_filtered %>% 
-  dplyr::select(first_name, last_name, position, drafted, ppg_19_20,
-                gp_21_22, age_continuous, treatment, ppg_21_22) %>%
+  dplyr::select(first_name, last_name, position, drafted, ppg_19,
+                gp_21, age_continuous, treatment, ppg_21) %>%
   filter(first_name %in% c("Shane","Brandt", "Logan", "Wyatt") & last_name %in% c("Wright", "Clarke", "Mailloux", "Johnston")) %>%
   arrange(desc(last_name)) %>%
   knitr::kable() %>% 
@@ -219,7 +194,7 @@ ohl_filtered %>%
 
 ```{r, fig.align = 'center', fig.cap = "Distribution of player performance is right-skewed"}
 # distribution of response
-ggplot(ohl_filtered, aes(x = ppg_21_22)) +
+ggplot(ohl_filtered, aes(x = ppg_21)) +
   geom_density(color = "royalblue3") +
   labs(title = "Distribution of player performance in post-COVID season",
        x = "Player Performance (PPG Post-COVID Season)") +
@@ -230,7 +205,7 @@ ggplot(ohl_filtered, aes(x = ppg_21_22)) +
 
 ```{r, fig.align='center', warning=FALSE, message=FALSE}
 # treatment vs ppg
-ggplot(ohl_filtered, aes(x = ppg_21_22, color = treatment)) +
+ggplot(ohl_filtered, aes(x = ppg_21, color = treatment)) +
   geom_density() +
   labs(title = "Players who played during COVID season generally had higher PPG in\npost-COVID season",
        x = "Player Performance (PPG Post-COVID Season)",
@@ -245,7 +220,7 @@ ggplot(ohl_filtered, aes(x = ppg_21_22, color = treatment)) +
 
 ```{r, fig.align = 'center'}
 # age vs ppg
-ggplot(ohl_filtered, aes(x = age_continuous, y = ppg_21_22)) +
+ggplot(ohl_filtered, aes(x = age_continuous, y = ppg_21)) +
   geom_point(alpha = .5) +
   labs(title = "Weak, slightly positive relationship between player performance and age",
        x = "Age in Pre-COVID Season",
@@ -267,7 +242,7 @@ ggplot(ohl_filtered, aes(x = age_continuous, color = treatment)) +
 
 ```{r, fig.align = 'center'}
 # gp vs ppg
-ggplot(ohl_filtered, aes(x = gp_21_22, y = ppg_21_22)) +
+ggplot(ohl_filtered, aes(x = gp_21, y = ppg_21)) +
   geom_point(alpha = .5) +
   labs(title = "Positive linear relationship between player performance and GP in \npost-COVID season",
        x = "GP in Post-COVID Season", 
@@ -275,7 +250,7 @@ ggplot(ohl_filtered, aes(x = gp_21_22, y = ppg_21_22)) +
   theme_bw() +
   geom_smooth(method = "lm")
 
-ggplot(ohl_filtered, aes(x = gp_21_22, color = treatment)) +
+ggplot(ohl_filtered, aes(x = gp_21, color = treatment)) +
   geom_density() +
   labs(title = "Skaters who played during COVID season played more games\nin post-COVID season",
        x = "GP in Post-COVID Season",
@@ -289,7 +264,7 @@ ggplot(ohl_filtered, aes(x = gp_21_22, color = treatment)) +
 ```{r, fig.align = 'center'}
 # drafted vs ppg
 ggplot(ohl_filtered) +
-  geom_density(aes(x = ppg_21_22, color = drafted)) +
+  geom_density(aes(x = ppg_21, color = drafted_19)) +
   labs(title = "Post-COVID season player performance generally greater for drafted players",
        x = "Player Performance (PPG in Post-COVID Season)",
        color = "Drafted") +
@@ -297,7 +272,7 @@ ggplot(ohl_filtered) +
   theme_bw()
 
 # drafted status vs treatment
-mosaicplot(table("Drafted" = ohl_filtered$drafted,
+mosaicplot(table("Drafted" = ohl_filtered$drafted_19,
                  "COVID Season" = ohl_filtered$treatment),
            main = "Drafted players more likely to have played during COVID season",
            shade = TRUE)
@@ -307,7 +282,7 @@ mosaicplot(table("Drafted" = ohl_filtered$drafted,
 
 ```{r, fig.align = 'center'}
 # ppg 2019-20 vs ppg 21-22
-ggplot(ohl_filtered, aes(x = ppg_19_20, y = ppg_21_22)) +
+ggplot(ohl_filtered, aes(x = ppg_19, y = ppg_21)) +
   geom_point(alpha = .5) +
   labs(title = "Positive linear relationship between post-COVID season player performance \nand player quality",
        x = "Player Quality (PPG in pre-COVID Season)",
@@ -315,7 +290,7 @@ ggplot(ohl_filtered, aes(x = ppg_19_20, y = ppg_21_22)) +
   geom_smooth(method = "lm") +
   theme_bw()
 
-ggplot(ohl_filtered, aes(x = ppg_19_20, color = treatment)) +
+ggplot(ohl_filtered, aes(x = ppg_19, color = treatment)) +
   geom_density() +
   labs(title = "Skaters who played during COVID season were higher quality players",
        x = "Player Quality (PPG in Pre-COVID Season)",
@@ -329,7 +304,7 @@ ggplot(ohl_filtered, aes(x = ppg_19_20, color = treatment)) +
 ```{r, fig.align = 'center'}
 # position vs ppg
 ggplot(ohl_filtered) +
-  geom_density(aes(x = ppg_21_22, color = position)) +
+  geom_density(aes(x = ppg_21, color = position)) +
   labs(title = "Post-COVID season player performance generally greater for forwards",
        x = "Player Performance (PPG in Post-COVID Season)",
        color = "Position") +
@@ -361,13 +336,13 @@ __Ordinary Least Squares (OLS)__ : We fit OLS without interaction, because this 
 
 ```{r, include = FALSE}
 # Basic OLS Regression
-ohl_mlr <- lm(ppg_21_22 ~ position + ppg_19_20 + treatment + drafted + gp_21_22 + age_continuous, data = ohl_filtered)
+ohl_mlr <- lm(ppg_21 ~ position + ppg_19 + treatment + drafted_19 + gp_21 + age_continuous, data = ohl_filtered)
 summary(ohl_mlr)
 ```
 
 ```{r, include = FALSE}
 # Interaction OLS Regression
-ohl_mlr_interaction <- lm(ppg_21_22 ~ position*ppg_19_20 + gp_19_20*ppg_19_20 + age_continuous*ppg_19_20 + ppg_19_20*treatment + ppg_19_20*drafted + drafted*age_continuous + gp_21_22, data = ohl_filtered)
+ohl_mlr_interaction <- lm(ppg_21 ~ position*ppg_19 + + age_continuous*ppg_19 + ppg_19*treatment + ppg_19*drafted_19 + drafted_19*age_continuous + gp_21, data = ohl_filtered)
 plot(ohl_mlr_interaction, which = c(1, 2))
 summary(ohl_mlr_interaction)
 ```
@@ -375,31 +350,38 @@ summary(ohl_mlr_interaction)
 ```{r, include = FALSE}
 # is the full model significantly different from the nested?
 anova(ohl_mlr, ohl_mlr_interaction)
-# yes it is, but the only significant term is ppg*gp, which is just points...
+# no.
 ```
 
 ```{r, include = FALSE}
 # shift ppg by .001 for gamma regression
 ohl_filtered <- ohl_filtered %>%
-  mutate(ppg_alt = ppg_21_22 + .001)
+  mutate(ppg_alt = ppg_21 + .001)
+
+ohl_glm_simple <- glm(ppg_alt ~ position + ppg_19 + treatment + drafted_19 + gp_21 + age_continuous, data = ohl_filtered, family = Gamma)
 
 # fit gamma regression model
-ohl_glm_interaction <- glm(ppg_alt ~ position*ppg_19_20 + drafted*treatment + gp_19_20*ppg_19_20 + age_continuous*ppg_19_20 + ppg_19_20*treatment + ppg_19_20*drafted + drafted*age_continuous,
+ohl_glm_interaction <- glm(ppg_alt ~  position*ppg_19 + age_continuous*ppg_19 + ppg_19*treatment + ppg_19*drafted_19 + drafted_19*age_continuous + gp_21,
                           data = ohl_filtered,
                           family = Gamma)
+
+plot(ohl_glm_simple, which = 1)
 plot(ohl_glm_interaction, which = 1)
+
+summary(ohl_glm_simple)
 summary(ohl_glm_interaction)
-simout <- simulateResiduals(ohl_glm_interaction)
-plotSimulatedResiduals(simout)
+
+simout_simple <- simulateResiduals(ohl_glm_simple)
+plotSimulatedResiduals(simout_simple)
+simout_interaction <- simulateResiduals(ohl_glm_interaction)
+plotSimulatedResiduals(simout_interaction)
 ```
 
 ```{r, include = FALSE}
 ohl_filtered <- ohl_filtered %>%
   mutate(treatment_numeric = ifelse(treatment == "Played", 1, 0))
 
-ohl_filtered$new_covid_league <- ifelse(is.na(ohl_filtered$covid_league), "NONE",
-                                        ohl_filtered$covid_league)
-ohl_lmer <- lmer(ppg_21_22 ~ position + ppg_19_20 + pts_19_20 + gp_19_20 + age_continuous + treatment_numeric + (treatment_numeric|new_covid_league),
+ohl_lmer <- lmer(ppg_21 ~ position + ppg_19 + gp_19 + age_continuous + drafted_19 + treatment_numeric + (treatment_numeric|covid_league),
                      data = ohl_filtered)
 summary(ohl_lmer)
 ```
@@ -425,12 +407,31 @@ league_effects %>%
 plotREsim(league_effects, labs = TRUE)
 ```
 
+```{r}
+ohl_filtered %>%
+  filter(covid_league %in% c("HockeyEttan", "SL", "WJC-18")) %>%
+  group_by(covid_league) %>%
+  summarize(n())
+```
+
+
 ```{r, include = FALSE}
 # final model choice based on significant terms in non-interaction OLS and interaction OLS
 # did not include points in 19-20 because points are very correlated with ppg
-ohl_mlr_final <- lm(ppg_21_22 ~ position + treatment + ppg_19_20 + gp_21_22 + age_continuous, data = ohl_filtered)
+ohl_mlr_final <- lm(ppg_21 ~ position + ppg_19 + treatment + gp_21 + age_continuous, data = ohl_filtered)
 summary(ohl_mlr_final)
 ```
+
+```{r}
+rmse_ols <- sqrt(mean(ohl_mlr$residuals^2))
+rmse_ols_int <- sqrt(mean(ohl_mlr_interaction$residuals^2))
+rmse_gamma_sim <-sqrt(mean(ohl_glm_simple$residuals^2))
+rmse_gamma_int <- sqrt(mean(ohl_glm_interaction$residuals^2))
+rmse_lmer <- sqrt(mean(residuals(ohl_lmer)^2))
+tibble(model = c("ols", "ols interaction", "gamma simple", "gamma interaction", "mixed effects"),
+       RMSE = c(rmse_ols, rmse_ols_int, rmse_gamma_sim, rmse_gamma_int, rmse_lmer))
+```
+
 
 ### Causal Analysis
 
@@ -446,7 +447,7 @@ The most appropriate regression model fit was OLS regression. The model explaine
 ohl_filtered %>%
   mutate(pred_vals = predict(ohl_mlr_final)) %>%
   ggplot(aes(x = pred_vals,
-             y = ppg_21_22)) +
+             y = ppg_21)) +
   geom_point(alpha = 0.5) +
   geom_abline(slope = 1, intercept = 0,
               linetype = "dashed",
@@ -470,26 +471,11 @@ confint(ohl_mlr_final)
 
 The first match we tried was using the nearest neighbor method. This approach does not optimize criterion, so we switched to optimal pair matching. The absolute within-pair difference of each covariate was smaller in the optimal match, hence better balanced. 
 
-```{r prop-score-data, include=FALSE}
-# load data
-ohl_filtered_m <- ohl_filtered
-
-ohl_filtered_m <- ohl_filtered %>% 
-  mutate(got_drafted = case_when(!is.na(draft_year) & draft_year < 2020
-                                 ~ 'Yes',
-                                 TRUE ~ 'No'))
-
-ohl_filtered2 <- ohl_filtered_m
-ohl_filtered2 <- ohl_filtered %>% 
-  mutate(treatment = case_when(treatment == "Played" ~ 1,
-                               treatment == "Didn't Play" ~ 0))
-```
-
 ```{r opt_propensity, fig.align='center'}
 opt_propensity_match <- 
-  matchit(treatment ~ gp_19_20 + position + pts_19_20 + ppg_19_20 + 
-            age_continuous + pm_rank_19_20, 
-          data = ohl_filtered2, method = "optimal",
+  matchit(treatment_numeric ~ gp_19 + position + pts_19 + ppg_19 + 
+            age_continuous + pm_rank_19, 
+          data = ohl_filtered, method = "optimal",
           distance = "gam",
           replace = FALSE, # do not reuse controls
           ratio = 1)
@@ -515,12 +501,11 @@ ppg_21_22 ~ position + ppg_19_20 + treatment + gp_21_22 + age_continuous + pts_1
 ```{r lm_opt_prop, fig.align='center'}
 opt_matched <- match.data(opt_propensity_match)
 
-opt_match_lm <- lm(ppg_21_22 ~ position + ppg_19_20 + treatment + 
-                      gp_21_22 + age_continuous,
+opt_match_lm <- lm(ppg_21 ~ position + ppg_19 + treatment + gp_21 + age_continuous,
                     data = opt_matched)
 
 plot(opt_match_lm, which = 1)
-#summary(opt_match_lm)
+summary(opt_match_lm)
 ```
 
 \(\widehat{\text{Player Performance}} = 1.145 + 0.054*\text{Treatment} + 0.212*\text{Forward} +  0.852*\text{Player Quality} +  0.0037*\text{Games Played Post-COVID}\\- 0.0644*\text{Age} \)
@@ -548,7 +533,7 @@ bal.plot(opt_propensity_match, var.name = "distance",
 ##### Games Played
 
 ```{r opt_gamesplayed, fig.align='center'}
-bal.plot(opt_propensity_match, var.name = "gp_19_20",
+bal.plot(opt_propensity_match, var.name = "gp_19",
          colors = c("goldenrod1", "dodgerblue"))
 ```
 
@@ -562,14 +547,14 @@ bal.plot(opt_propensity_match, var.name = "position",
 ##### Points
 
 ```{r opt_points, fig.align='center'}
-bal.plot(opt_propensity_match, var.name = "pts_19_20",
+bal.plot(opt_propensity_match, var.name = "pts_19",
          colors = c("goldenrod1", "dodgerblue"))
 ```
 
 ##### Points Per Game
 
 ```{r opt_ppg, fig.align='center'}
-bal.plot(opt_propensity_match, var.name = "ppg_19_20",
+bal.plot(opt_propensity_match, var.name = "ppg_19",
          colors = c("goldenrod1", "dodgerblue"))
 ```
 
@@ -583,7 +568,7 @@ bal.plot(opt_propensity_match, var.name = "age_continuous",
 ##### Plus-Minus
 
 ```{r opt_plusminus, fig.align='center'}
-bal.plot(opt_propensity_match, var.name = "pm_rank_19_20",
+bal.plot(opt_propensity_match, var.name = "pm_rank_19",
          colors = c("goldenrod1", "dodgerblue"))
 ```
 
@@ -594,32 +579,137 @@ bal.plot(opt_propensity_match, var.name = "pm_rank_19_20",
 An appeal of BART is that it controls overfitting, which is one issue with normal additive regression trees. Each tree tries to account for something new in the model. Once all added, accurate estimates are produced. This allows for causal inferences to be drawn.
 
 ```{r bart-data, include = FALSE}
-ohl_filtered_b <- ohl_filtered
+# ohl_update <- ohl_filtered
+# 
+# # ohl_filtered_b <- ohl_filtered_b %>% 
+# #   mutate(got_drafted = case_when(!is.na(draft_year) & draft_year < 2020
+# #                                  ~ 'Yes',
+# #                                  TRUE ~ 'No'))
+# 
+# # convert treatment to binary indicator:
+# # ohl_update <- ohl_filtered_b %>% 
+# #   mutate(treatment = ifelse(treatment == "Played", 1, 0),
+# #          treatment = as.integer((treatment)))
+# 
+# # convert categorical variables to binary
+# ohl_update <- ohl_update %>% 
+#   mutate(is_forward = case_when(position == "F" ~ 1, 
+#                                 position == "D" ~ 0)) %>% 
+#   mutate(is_drafted = case_when(drafted_19 == "Yes" ~ 1,
+#                                 drafted_19 == "No" ~ 0)) %>% 
+#   # mutate(s_played = case_when(season == "2021-2022" ~ 1,
+#   #                             season == "2019-2020" ~ 0)) %>% 
+#   as.data.frame()
+```
 
-ohl_filtered_b <- ohl_filtered_b %>% 
-  mutate(got_drafted = case_when(!is.na(draft_year) & draft_year < 2020
-                                 ~ 'Yes',
-                                 TRUE ~ 'No'))
+# BEGIN BART EXPERIMENTING
 
-# convert treatment to binary indicator:
-ohl_update <- ohl_filtered_b %>% 
-  mutate(treatment = ifelse(treatment == "Played", 1, 0),
-         treatment = as.integer((treatment)))
+```{r fit-var-sel, message = FALSE, warning = FALSE, results='hide'}
+# # fit variable selection model
+# var_select_bart <- wbart(x.train = dplyr::select(ohl_update, gp_19,
+#                                                  pts_19, age_continuous, 
+#                                                  pm_relative_19, pm_19, 
+#                                                  is_forward, is_drafted,
+#                                                  ppg_19),
+#                        y.train = pull(ohl_update, ppg_21),
+#                        sparse = TRUE,
+#                        ntree = 25,
+#                        ndpost = 50)
+# # without draft
+# var_select_bart_nodr <- wbart(x.train = dplyr::select(ohl_update, gp_19,
+#                                                  pts_19, age_continuous, 
+#                                                  pm_relative_19, pm_19, 
+#                                                  is_forward, ppg_19),
+#                        y.train = pull(ohl_update, ppg_21),
+#                        sparse = TRUE,
+#                        ntree = 25,
+#                        ndpost = 50)
+```
 
-# convert categorical variables to binary
-ohl_update <- ohl_update %>% 
-  mutate(is_forward = case_when(position == "F" ~ 1, 
-                                position == "D" ~ 0)) %>% 
-  mutate(is_drafted = case_when(got_drafted == "Yes" ~ 1,
-                                got_drafted == "No" ~ 0)) %>% 
-  mutate(s_played = case_when(season == "2021-2022" ~ 1,
-                              season == "2019-2020" ~ 0)) %>% 
-  as.data.frame()
+```{r}
+# variable selection
+# covar_ranking <- covariate_importance(var_select_bart)
+# var_select <- covar_ranking %>% 
+#   filter(avg_inclusion >= quantile(avg_inclusion, 0.5)) %>% 
+#   pull(variable)
+# 
+# # without draft
+# covar_ranking_nodr <- covariate_importance(var_select_bart_nodr)
+# var_select_nodr <- covar_ranking_nodr %>% 
+#   filter(avg_inclusion >= quantile(avg_inclusion, 0.5)) %>% 
+#   pull(variable)
+```
 
+```{r prop-scr-mdl, message = FALSE, warning = FALSE, results='hide'}
+# fit a propensity score model
+# prop_bart <- pbart(x.train = dplyr::select(ohl_update, all_of(var_select)),
+#                   y.train = pull(ohl_update, treatment),
+#                   nskip = 2000,
+#                   ndpost = 5000)
+# # store propensity score in data
+# ohl_update$prop_score <- prop_bart$prob.train.mean
+# # copy of ohl_update
+# ohl_update2 <- ohl_update
+# # without draft
+# prop_bart_nodr <- pbart(x.train = dplyr::select(ohl_update2, 
+#                                                 all_of(var_select_nodr)),
+#                   y.train = pull(ohl_update2, treatment),
+#                   nskip = 2000,
+#                   ndpost = 5000)
+# ohl_update2$prop_score <- prop_bart_nodr$prob.train.mean
+```
+
+```{r fit-trt-ef, message = FALSE, warning = FALSE, results='hide'}
+# fit the treatment effect model
+# te_model <- wbart(x.train = dplyr::select(ohl_update, gp_19_20, pts_19_20,
+#                                   age_continuous, pm_relative_19_20,
+#                                   pm_rank_19_20, pm_19_20, is_forward,
+#                                   is_drafted, treatment, prop_score),
+#                                   # need to include treatment and prop score
+#                  y.train = pull(ohl_update, ppg_19_20),
+#                  nskip = 10000L,
+#                  ndpost = 200L,
+#                  keepevery = 100L)
+# te_model <- wbart(x.train = dplyr::select(ohl_update, gp_19_20, pts_19_20,
+#                                   age_continuous, pm_relative_19_20,
+#                                   pm_19_20, is_forward,
+#                                   is_drafted, ppg_19_20, treatment, prop_score),
+#                                   # need to include treatment and prop score
+#                  y.train = pull(ohl_update, ppg_21_22),
+#                  nskip = 10000L,
+#                  ndpost = 200L,
+#                  keepevery = 100L)
+# # without draft
+# te_model_nodr <- wbart(x.train = dplyr::select(ohl_update2, gp_19_20, pts_19_20,
+#                                   age_continuous, pm_relative_19_20,
+#                                   pm_19_20, is_forward,
+#                                   ppg_19_20, treatment, prop_score),
+#                                   # need to include treatment and prop score
+#                  y.train = pull(ohl_update2, ppg_21_22),
+#                  nskip = 10000L,
+#                  ndpost = 200L,
+#                  keepevery = 100L)
+```
+
+```{r extratct-post, message = FALSE, warning = FALSE}
+# extract the posterior
+# posterior_fitted <- fitted_draws(te_model, value = "fit",
+#                                  include_newdata = FALSE)
+# posterior_fitted
+# # function to tidy predicted draws and add random normal noise by default
+# posterior_pred <- predicted_draws(te_model, include_newdata = FALSE)
+# # without draft
+# posterior_fitted_nodr <- fitted_draws(te_model_nodr, value = "fit",
+#                                  include_newdata = FALSE)
+# posterior_fitted_nodr
+# posterior_pred_nodr <- predicted_draws(te_model_nodr, include_newdata = FALSE)
+```
+
+```{r}
 # load rds files
-var_select_bart <- readRDS("var_select_bart.rds")
-prop_bart <- readRDS("prop_bart.rds")
-te_model <- readRDS("te_model.rds")
+# var_select_bart <- readRDS("var_select_bart.rds")
+# prop_bart <- readRDS("prop_bart.rds")
+# te_model <- readRDS("te_model.rds")
 ```
 
 ```{r fit_bart_reg_model}
@@ -627,16 +717,16 @@ te_model <- readRDS("te_model.rds")
 # var_select_bart
 
 # variable selection
-covar_ranking <- covariate_importance(var_select_bart)
-var_select <- covar_ranking %>% 
-  filter(avg_inclusion >= quantile(avg_inclusion, 0.5)) %>% 
-  pull(variable)
-
-# fit a propensity score model
-# prop_bart
-
-# store propensity score in data
-ohl_update$prop_score <- prop_bart$prob.train.mean
+# covar_ranking <- covariate_importance(var_select_bart)
+# var_select <- covar_ranking %>% 
+#   filter(avg_inclusion >= quantile(avg_inclusion, 0.5)) %>% 
+#   pull(variable)
+# 
+# # fit a propensity score model
+# # prop_bart
+# 
+# # store propensity score in data
+# ohl_update$prop_score <- prop_bart$prob.train.mean
 
 # fit the treatment effect model
 # te_model
@@ -644,12 +734,12 @@ ohl_update$prop_score <- prop_bart$prob.train.mean
 
 ```{r extract-posterior, include=FALSE}
 # extract the posterior
-posterior_fitted <- fitted_draws(te_model, value = "fit",
-                                 include_newdata = FALSE)
-posterior_fitted
-
-# function to tidy predicted draws and add random normal noise by default
-posterior_pred <- predicted_draws(te_model, include_newdata = FALSE)
+# posterior_fitted <- fitted_draws(te_model, value = "fit",
+#                                  include_newdata = FALSE)
+# posterior_fitted
+# 
+# # function to tidy predicted draws and add random normal noise by default
+# posterior_pred <- predicted_draws(te_model, include_newdata = FALSE)
 ```
 
 #### Treatment Effects {.tabset}
@@ -657,61 +747,61 @@ posterior_pred <- predicted_draws(te_model, include_newdata = FALSE)
 ```{r calc-treat-ef, include = FALSE}
 # sample based (using data from fit) conditional treatment effects,
 # posterior draws
-posterior_treat_eff <- 
-  treatment_effects(te_model, treatment = "treatment",
-                    # the dataset here needs to match the BART data EXACTLY
-                    # which is really annoying...
-                    newdata = dplyr::select(ohl_update, gp_19_20, pts_19_20, 
-                                     age_continuous, pm_relative_19_20, 
-                                     pm_rank_19_20, is_forward, pm_19_20,
-                                     is_drafted, treatment, prop_score))
+# posterior_treat_eff <- 
+#   treatment_effects(te_model, treatment = "treatment",
+#                     # the dataset here needs to match the BART data EXACTLY
+#                     # which is really annoying...
+#                     newdata = dplyr::select(ohl_update, gp_19_20, pts_19_20, 
+#                                      age_continuous, pm_relative_19_20, 
+#                                      pm_rank_19_20, is_forward, pm_19_20,
+#                                      is_drafted, treatment, prop_score))
 ```
 
 ##### All Draws
 
 ```{r, trt_ef_all, message = FALSE, warning = FALSE, fig.align = 'center'}
 # histogram of treatment effect (all draws)
-posterior_treat_eff %>% 
-  ggplot() +
-  geom_histogram(aes(x = cte), bins = 50, color = "white") +
-  geom_vline(xintercept = 0, color = "red", size = 1) +
-  theme_bw() + ggtitle("Histogram of treatment effect (all draws)")
+# posterior_treat_eff %>% 
+#   ggplot() +
+#   geom_histogram(aes(x = cte), bins = 50, color = "white") +
+#   geom_vline(xintercept = 0, color = "red", size = 1) +
+#   theme_bw() + ggtitle("Histogram of treatment effect (all draws)")
 ```
 
 ##### Mean For Each Subject
 
 ```{r trt_ef_sub, message = FALSE, warning = FALSE, fig.align = 'center'}
 # histogram of treatment effect (mean for each subject)
-posterior_treat_eff %>% summarise(cte_hat = mean(cte)) %>%
-  ggplot() +
-  geom_histogram(aes(x = cte_hat), bins = 60, colour = "white") + 
-  geom_vline(xintercept = 0, color = "red", size = 1) +
-  theme_bw() + 
-  ggtitle("Histogram of treatment effect (mean for each subject)")
+# posterior_treat_eff %>% summarise(cte_hat = mean(cte)) %>%
+#   ggplot() +
+#   geom_histogram(aes(x = cte_hat), bins = 60, colour = "white") + 
+#   geom_vline(xintercept = 0, color = "red", size = 1) +
+#   theme_bw() + 
+#   ggtitle("Histogram of treatment effect (mean for each subject)")
 ```
 
 ##### CIs of the CATEs
 
 ```{r ci-cate, message = FALSE, warning = FALSE, fig.align = 'center'}
 # posterior CIs of the CATEs
-posterior_treat_eff %>% dplyr::select(-treatment) %>% point_interval() %>%
-  arrange(cte) %>% mutate(.orow = 1:n()) %>% 
-  ggplot() + 
-  geom_interval(aes(x = .orow, y= cte, ymin = .lower, ymax = .upper)) +
-  geom_point(aes(x = .orow, y = cte), shape = "circle open", alpha = 0.5) + 
-  ylab("Median posterior CATE for each subject (95% CI)") +
-  theme_bw() + coord_flip() + scale_colour_brewer() +
-  theme(axis.title.y = element_blank(), 
-        axis.text.y = element_blank(), 
-        axis.ticks.y = element_blank(),
-        legend.position = "none")
+# posterior_treat_eff %>% dplyr::select(-treatment) %>% point_interval() %>%
+#   arrange(cte) %>% mutate(.orow = 1:n()) %>% 
+#   ggplot() + 
+#   geom_interval(aes(x = .orow, y= cte, ymin = .lower, ymax = .upper)) +
+#   geom_point(aes(x = .orow, y = cte), shape = "circle open", alpha = 0.5) + 
+#   ylab("Median posterior CATE for each subject (95% CI)") +
+#   theme_bw() + coord_flip() + scale_colour_brewer() +
+#   theme(axis.title.y = element_blank(), 
+#         axis.text.y = element_blank(), 
+#         axis.ticks.y = element_blank(),
+#         legend.position = "none")
 ```
 
 #### {-}
 
-<<<<<<< HEAD
-=======
 ## Results
+
+### Linear Regression
 
 The most appropriate regression model fit was OLS regression. The model explained approximately 59% of the variance in the data without sacrificing interpretability. Interaction OLS regression only marginally increased the variance explained and was not significantly different from OLS regression. Conditions for inference for both of these models were mostly met. Though Gamma regression fit the data well, the model conditions for inference were not met (the residuals were not gamma-distributed). Lastly, it was found that the effect of playing during COVID did not significantly differ across leagues in our mixed-effects model, so the extra complexity of the model was deemed unnecessary.
 
@@ -723,7 +813,7 @@ The most appropriate regression model fit was OLS regression. The model explaine
 ohl_filtered %>%
   mutate(pred_vals = predict(ohl_mlr_final)) %>%
   ggplot(aes(x = pred_vals,
-             y = ppg_21_22)) +
+             y = ppg_21)) +
   geom_point(alpha = 0.5) +
   geom_abline(slope = 1, intercept = 0,
               linetype = "dashed",
@@ -771,9 +861,6 @@ After selecting the linear regression model, we matched the data and refit the m
 
 #### BART
 
-
-
->>>>>>> 513bf4021cb537e12120e260d130a39d86991c6f
 ## Discussion
 
 #### OLS Regression Model Interpretation
@@ -849,5 +936,6 @@ Our treatment variable was defined as players who participated in at least one g
 ### Acknowledgments
 
 Thank you to our external advisor Dr. Sam Ventura (and assistant Dominic Ventura) and our professor and advisor, Dr. Ron Yurko. We would also like to thank our TAs, Nick Kissel, Meg Ellingwood, Wanshan Li, Kenta Takatsu, and YJ Choe. Lastly, thank you to Professor Ben Baumer, Smith College and Dr. Ryne Vankrevelen, Elon University. We could not have completed this project without you all and we sincerely appreciate your help!
+
 
 ...

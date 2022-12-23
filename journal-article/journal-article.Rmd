@@ -29,6 +29,7 @@ output: rticles::asa_article
 library(cowplot)
 library(tidyverse)
 library(kableExtra)
+options(warn=-1)
 ```
 
 ```{r, data, include = FALSE}
@@ -37,27 +38,25 @@ ohl_filtered <- read_csv("../data/ohl_filtered.csv")
 
 ```{r, rds-objects, include = FALSE}
 # Data
-data_integrity <- readRDS("./supplementary-materials/data_integ_table.rds")
+data_integrity <- readRDS("./supplementary-materials/rds-files/data_integ_table.rds")
 # EDA plots
-prelim_plots <- readRDS("./supplementary-materials/prelim_plots.rds")
-age_plots <- readRDS("./supplementary-materials/age_plots.rds")
-gp_plots <- readRDS("./supplementary-materials/gp_plots.rds")
-ppp_plots <- readRDS("./supplementary-materials/ppp_plots.rds")
-pos_plots <- readRDS("./supplementary-materials/pos_plots.rds")
+prelim_plots <- readRDS("./supplementary-materials/rds-files/prelim_plots.rds")
+age_plots <- readRDS("./supplementary-materials/rds-files/age_plots.rds")
+gp_plots <- readRDS("./supplementary-materials/rds-files/gp_plots.rds")
+ppp_plots <- readRDS("./supplementary-materials/rds-files/ppp_plots.rds")
+pos_plots <- readRDS("./supplementary-materials/rds-files/pos_plots.rds")
 # Results
-rmse_table <- readRDS("./supplementary-materials/rmse_table.rds")
-ols_plot <- readRDS("./supplementary-materials/ols_plot.rds")
-shane_demo <- readRDS("./supplementary-materials/shane_demo.rds")
-bart_plots <- readRDS("./supplementary-materials/bart_plots.rds")
-bart_cates <- readRDS("./supplementary-materials/bart_cates.rds")
+rmse_table <- readRDS("./supplementary-materials/rds-files/rmse_table.rds")
+ols_plot <- readRDS("./supplementary-materials/rds-files/ols_plot.rds")
+shane_demo <- readRDS("./supplementary-materials/rds-files/shane_demo.rds")
+bart_plots <- readRDS("./supplementary-materials/rds-files/bart_plots.rds")
+bart_cates <- readRDS("./supplementary-materials/rds-files/bart_cates.rds")
 # Limitations
-ols_lim_plots <- readRDS("./supplementary-materials/ols_lim_plots.rds")
+ols_lim_plots <- readRDS("./supplementary-materials/rds-files/ols_lim_plots.rds")
 ```
 
 
 # Introduction
-
-@joyce @lefebvre \cite{joyce, lefebvre}
 
 During 2020-2021, many hockey leagues had shortened seasons or no seasons due to the restrictions on play caused by the COVID-19 pandemic. Among these leagues were National Hockey League (NHL) feeder leagues, such as the Ontario Hockey League (OHL), the Western Hockey League, and the Quebec Major Junior Hockey League. Some players experiencing restrictions on play participated in other leagues or tournaments during the 2020-21 season, while others did not. This raises the question of whether not playing games during the 2020-2021 COVID season negatively impacted player development (or even caused players to get worse).
 
@@ -67,11 +66,11 @@ There has been much speculation from coaches, scouts, sports commentators, and f
 
 # Previous Work
 
-\(\hspace{0.25in}\)Previous work in this area has investigated the impact of injury on player development and important psychological aspects of player development. Much work has focused on psychological aspects in player development, such as mutual trust and respect between athletes and their coaches, or frameworks through which players develop \cite{lefebvre, soberlak}. But little research was found on pivotal developmental years or typical development curves for ice hockey players, though some work has been done to investigate development progression in swimming @born. This research pointed to significant development from ages 10 to roughly 17 depending on the group analyzed, which could potentially translate to hockey development and OHL players. The prior research most similar to our research investigated the performance impacts of concussions in the NHL \cite{buckley, neustadtl}. Neustadtl et al. found no significant differences in pre- and post-concussion performance for the 269 NHL players studied. Buckley at al. again found no significant difference in pre and post- performance for players who missed playing time due to injury and those who missed playing time due to non-injury reasons. However, no research was found investigating the impact of reduced playing time in developing (major junior) hockey players.
+Previous work in this area has investigated the impact of injury on player development and important psychological aspects of player development. Much work has focused on psychological aspects in player development, such as mutual trust and respect between athletes and their coaches, or frameworks through which players develop \cite{lefebvre, soberlak}. But little research was found on pivotal developmental years or typical development curves for ice hockey players, though some work has been done to investigate development progression in swimming @born. This research pointed to significant development from ages 10 to roughly 17 depending on the group analyzed, which could potentially translate to hockey development and OHL players. The prior research most similar to our research investigated the performance impacts of concussions in the NHL \cite{buckley, neustadtl}. Neustadtl et al. found no significant differences in pre- and post-concussion performance for the 269 NHL players studied. Buckley at al. again found no significant difference in pre and post- performance for players who missed playing time due to injury and those who missed playing time due to non-injury reasons. However, no research was found investigating the impact of reduced playing time in developing (major junior) hockey players.
 
 # Data
 
-\(\hspace{0.25in}\)Our dataset includes skaters (excludes goalies) who played in the Ontario Hockey League (OHL) during both the pre-COVID (2019-2020) and post-COVID (2021-2022) seasons. The dataset also contains information regarding other leagues they have participated in during their career. There is data about season, team, league, points, games played, position, and drafted status. Each row is a player on a certain team in a specific season. There are 219 observations in the dataset. The data was sourced from Elite Prospects and was supplied by our external advisor, Dr. Sam Ventura.
+Our dataset includes skaters (excludes goalies) who played in the Ontario Hockey League (OHL) during both the pre-COVID (2019-2020) and post-COVID (2021-2022) seasons. The dataset also contains information regarding other leagues they have participated in during their career. There is data about season, team, league, points, games played, position, and drafted status. Each row is a player on a certain team in a specific season. There are 219 observations in the dataset. The data was sourced from Elite Prospects and was supplied by our external advisor, Dr. Sam Ventura.
 
 ```{r, sample-rows, echo = FALSE}
 ohl_filtered %>% 
@@ -85,13 +84,13 @@ ohl_filtered %>%
 
 ## Added Variables
 
-\(\hspace{0.25in}\)If a skater played for several teams during one season, including the COVID season, the team for which they played the most games was selected. Statistics for all other teams were dropped. This was done to control for team effect on performance.
+If a skater played for several teams during one season, including the COVID season, the team for which they played the most games was selected. Statistics for all other teams were dropped. This was done to control for team effect on performance.
 
 \(\hspace{-0.25in}\)**Player performance**: To approximate player performance in the post-COVID season, we calculated each player’s points per game (PPG) as PPG = (goals + assists)/games played in the post-COVID season. 
 
 \(\hspace{-0.25in}\)**Previous player performance**: To approximate player performance in the pre-COVID season, we computed each player’s PPG in the pre-COVID season.
 
-\(\hspace{-0.25in}\)**Treatment**: We defined a player as treated if they participated in at least one game during the post-COVID season. This allowed us to retain players who recorded relatively few games in elite competitions like the IIHF World Junior Championship as treated. Thus ensuring we were not obscuring the effects of these competitions on development. There are 67 treated players and 152 control players.
+\(\hspace{-0.25in}\)**Treatment**: We defined a player as treated if they participated in at least one game during the post-COVID season. This allowed us to retain players who recorded relatively few games in elite competitions like the International Ice Hockey Federation World Junior Championship as treated. Thus ensuring we were not obscuring the effects of these competitions on development. There are 67 treated players and 152 control players.
 
 \(\hspace{-0.25in}\)**Age**: We defined age as the continuous age of the player as of January 1st, 2020.
 Previous Player Performance : To control for player performance in the pre-COVID season, we approximated player performance using player PPG in the pre-COVID season.
@@ -103,7 +102,7 @@ Relative PM : Relative plus-minus (PM) is defined as a player's PM relative to t
 
 ## Data Integrity
 
-Through analysis and comparison with OHL records, we estimate that we have 99% of the data from the 2019-2020 and 2021-2022 regular seasons.
+Through analysis and comparison with OHL records, we estimate that we have 99% of the data from the 2019-2020 and 2021-2022 regular seasons (Table 3).
 
 ```{r, data-integrity, echo = FALSE}
 data_integrity %>%
@@ -111,7 +110,7 @@ data_integrity %>%
   kable_styling(latex_options="scale_down")
 ```
 
-## Exploratory Data Analysis (EDA)
+## EDA
 
 ### Preliminary Visualizations
 
@@ -162,15 +161,15 @@ pos_plots
 
 # Methods
 
-Before performing causal analysis, we used traditional statistical inference methods to determine whether playing during the COVID season had a significant effect on post-COVID player performance while controlling for variables (and interactions between variables) suspected to be associated with the response through EDA. When possible, we attempted a few different measures of player performance, including PPG z-scores (to control for differences in overall scoring across seasons) and relative plus-minus scores. All code is available in the supplementary code document (CITE).
+Before performing causal analysis, we used traditional statistical inference methods to determine whether playing during the COVID season had a significant effect on post-COVID player performance while controlling for variables (and interactions between variables) suspected to be associated with the response through exploratory data analysis (EDA). When possible, we attempted a few different measures of player performance, including PPG z-scores (to control for differences in overall scoring across seasons) and relative plus-minus scores. All code is available in the supplementary code document of the supplementary materials folder @sezgin.
 
 For all methods \(\epsilon \sim N(0, \sigma^2)\)
 
 ## Regression
 
-### Ordinary Least Squares (OLS)
+### OLS
 
-We fit an OLS regression model without interaction, because it is the simplest and most interpretable model to assess the significance of playing during COVID, while still controlling for variables that could be confounding our analysis.
+We fit an Ordinary Least Squares (OLS) regression model without interaction, because it is the simplest and most interpretable model to assess the significance of playing during COVID, while still controlling for variables that could be confounding our analysis.
 
 \vspace{-.5cm}
 
@@ -237,17 +236,17 @@ v_{i}
 
 ### Matching
 
-Matching on covariates allowed us to better control for confounding variables and more accurately estimate the true impact of the treatment. The results fit on matched data were compared to the results of the model fit on unmatched data. Control and treatment observations were matched on  games played post-COVID, position, points pre-COVID, previous player performance, age, and ranked PM pre-COVID. Optimal matching method and GAM measure of distance were used, and a 1-to-1 matching ratio was used due to the small sample size. The model is the same as the OLS model, but fit with matched data.
+Matching on covariates allowed us to better control for confounding variables and more accurately estimate the true impact of the treatment. The results fit on matched data were compared to the results of the model fit on unmatched data. Control and treatment observations were matched on  games played post-COVID, position, points pre-COVID, previous player performance, age, and ranked PM pre-COVID. "Optimal" matching method and GAM measure of distance were used, and a 1-to-1 matching ratio was used due to the small sample size. The model is the same as the OLS model, but fit with matched data.
 
-### Bayesian Additive Regression Trees (BART)
+### BART
 
-An appeal of the BART model is that it controls overfitting, which is one issue with normal additive regression trees. Each tree tries to account for something new in the model. Once all added, accurate estimates are produced. This allows for causal inferences to be drawn. The workflow used is taken from Joshua Bon's vignette on using the tidytreatment package with BART. 
+An appeal of the Bayesian Additive Regression Trees (BART) model is that it controls overfitting, which is one issue with normal additive regression trees. Each tree tries to account for something new in the model. Once all added, accurate estimates are produced. This allows for causal inferences to be drawn. The workflow used is taken from Joshua Bon's vignette on using the tidytreatment package with BART. 
 
-A variable selection model was used to find important variables for obtaining propensity scores. The variable selection model was a continuous BART model regressing all covariates except for the treatment against post-COVID player performance. The burn-in period was set to 2000 iterations, with posterior draws set to 5000. Variables were deemed important if their average inclusion in the model was equal to or greater than 50%. The most important variables were used to produce propensity scores using a probit BART model, with a burn-in of 2000 draws and 5000 posterior draws. Finally, all covariates, including treatment, and propensity scores were used in the final BART model to predict post-COVID player performance. The final model produced a posterior distribution of estimated post-COVID player performance for each player, with a burn-in of 10,000 draws and 200 posterior draws per player. The method of obtaining the posterior is outlined by Chipman et al. (CITE)
+A variable selection model was used to find important variables for obtaining propensity scores. The variable selection model was a continuous BART model regressing all covariates except for the treatment against post-COVID player performance. The burn-in period was set to 2000 iterations, with posterior draws set to 5000. Variables were deemed important if their average inclusion in the model was equal to or greater than 50%. The most important variables were used to produce propensity scores using a probit BART model, with a burn-in of 2000 draws and 5000 posterior draws. Finally, all covariates, including treatment, and propensity scores were used in the final BART model to predict post-COVID player performance. The final model produced a posterior distribution of estimated post-COVID player performance for each player, with a burn-in of 10,000 draws and 200 posterior draws per player. The method of obtaining the posterior is outlined by @chipman.
 
 For all models "let \(T\) denote a binary tree consisting of a set of interior node decision rules
 and a set of terminal nodes, and let \(M = \{\mu_1, \mu_2, . . . ,\mu_b\}\) denote a set of
-parameter values associated with each of the \(b\) terminal nodes of \(T\)" (CITE).
+parameter values associated with each of the \(b\) terminal nodes of \(T\)" @chipman.
 
 **Variable selection model**:
 
@@ -272,7 +271,7 @@ parameter values associated with each of the \(b\) terminal nodes of \(T\)" (CIT
 
 # Results
 
-Across all models there was no evidence of a treatment effect given the observed data, regardless of the measure of player performance chosen (PPG, PPG z-scores, ranked PM, relative PM). PPG was ultimately chosen as the response measure because of its interpretability. The RMSE values for each of the models according to ascending error is summarized in Table 3.
+Across all models there was no evidence of a treatment effect given the observed data, regardless of the measure of player performance chosen (PPG, PPG z-scores, ranked PM, relative PM). PPG was ultimately chosen as the response measure because of its interpretability. The root mean squared error (RMSE) values for each of the models according to ascending error is summarized in Table 3.
 
 \begin{table}
 
@@ -307,6 +306,7 @@ gamma interaction & 1.2248592\\
 The regression model that best balances accuracy and parsimony is the OLS model.
 
 \(\widehat{\text{Player Performance}} = 1.14 + 0.05*\text{Treatment} + 0.18*\text{Forward} +  0.89*\text{Previous Performance} \hspace{.1cm} + .006*\text{Games Played Post-COVID} - .07*\text{Age}\)
+\(\vspace{.25cm}\)
 
 ```{r, ols-plot, echo = FALSE}
 ols_plot
@@ -321,18 +321,21 @@ ols_plot
 The variables deemed important in the variable selection model were games played post-COVID, points pre-COVID, relative PM pre-COVID, position, and previous player performance.
 
 \(x_{important} = \{ \text{Games Played Post-COVID}, \text{Points Pre-COVID}, \text{Age}, \\ \text{Relative PM Pre-COVID}, \text{Position}, \text{Previous Player Performance}\}\)
+\(\vspace{.25cm}\)
 
-The estimated effects do not differ significantly from the line at 0, which indicates that there is not sufficient evidence of a treatment effect. Figure 1 is bell-shaped and fairly symmetric. At first Figure NUM appears to be alluding to a treatment effect. The range of the x-axis in Figure 2 is much smaller than in Figure NUM. This graph is suggesting that if there is a treatment effect, it is very small.
+The estimated effects do not differ significantly from the line at 0, which indicates that there is not sufficient evidence of a treatment effect. The histogram of treatment effects is bell-shaped and fairly symmetric. The mean treatment effects show that there could be a slightly positive, though extremely small treatment effect for all subjects, but this is shown to be not significant in Figure 7. 
 
 ```{r, bart-plots, echo = FALSE}
 bart_plots
 ```
+\(\hspace*{\fill} \footnotesize \text{Figure 6. BART posterior draws and means plots}\)
 
-The confidence intervals for Conditional Average Treatment Effect support the same conclusions. Similar to Figure 2., most of the point estimates in Figure 3. are positive. But since all of the confidence intervals contain 0, this visualization is compatible with no treatment effect.
+The confidence intervals for Conditional Average Treatment Effect support the same conclusions. Similar to the mean treatment effects, most of the point estimates in Figure 7 are positive. But since all of the confidence intervals contain 0, this visualization is compatible with no treatment effect.
 
 ```{r, bart-cates, echo = FALSE}
 bart_cates
 ```
+\(\hspace*{\fill} \footnotesize \text{Figure 7. BART CATE plot}\)
 
 # Discussion
 
@@ -342,7 +345,7 @@ bart_cates
 
 Player performance in the post-COVID season is expected to increase by 0.05 PPG on average for skaters who played during COVID, when holding constant position, previous player performance, games played in the post-COVID season, points scored in the pre-COVID season, and age. Over the course of a 68 game season in the OHL, the treatment effect would result in only approximately 3 extra points. In this model, the coefficient for whether someone played during the COVID-season was not statistically significantly different from zero. There is no evidence that playing during the COVID season impacted player performance in the post-COVID season for players who played in both the pre- and post-COVID seasons in the OHL. 
 
-We are 95% confident that the change in player performance in the post-COVID for players who played during the COVID season is between -0.0185 and 0.149 PPG, holding constant position, previous player performance, games played in the post-COVID season, points scored in the pre-COVID season, and continuous age. This model can be used to predict player performance in the post-COVID season based on a variety of factors in the pre-, COVID, and post-COVID seasons among skaters who played in the OHL in both the pre- and post-COVID seasons. For example, using Shane Wright as our observation, the model predicts his post-COVID player performance to be 1.61 points per game, while his actual points per game was slightly lower at 1.49.
+We are 95% confident that the change in player performance in the post-COVID for players who played during the COVID season is between -0.0185 and 0.149 PPG, holding constant position, previous player performance, games played in the post-COVID season, points scored in the pre-COVID season, and continuous age. This model can be used to predict player performance in the post-COVID season based on a variety of factors in the pre-, COVID, and post-COVID seasons among skaters who played in the OHL in both the pre- and post-COVID seasons. For example, using Shane Wright as our observation (Table 4), the model predicts his post-COVID player performance to be 1.61 points per game, while his actual points per game was slightly lower at 1.49.
 
 \begin{table}
 \caption{\label{Table 4.}Shane Wright stats}
@@ -360,7 +363,7 @@ Played & F & 1.137931 & 63 & 15.98904 & 1.492063 & 1.606924\\
 
 ### Model Limitations
 
-#### OLS
+#### OLS:
 
 The model conditions for inference were not all met. The relationship between our explanatory variables and post-COVID season PPG looks roughly linear, so the linearity condition of OLS is met. However, the skaters in the dataset are playing together on the same teams in the same league and influencing each other’s player performance. Because we were using player level data, and not play level data, we could not attempt to account for this non-independence. Therefore, this condition is not met. The residuals seem roughly normally distributed, as shown in the normal QQ plot, so this condition is met. There seems to be roughly constant variance in residuals across all levels of our explanatory variables, so the error homogeneity condition is met.
 
@@ -396,4 +399,8 @@ When studying the effects of the pandemic hockey restrictions on OHL hockey play
 
 # Acknowledgments
 
-Thank you to our external advisor Dr. Sam Ventura and our professor and advisor, Dr. Ron Yurko. Additional thanks to Professor Ben Baumer, Smith College and Dr. Ryne Vankrevelen, Elon University. We could not have completed this project without you all and we sincerely appreciate your help.
+Thank you to our external advisor Dr. Sam Ventura and our professor and advisor, Dr. Ron Yurko. Additional thanks to professors and universities, we could not have completed this project without them and we sincerely appreciate their help.
+
+\pagebreak
+
+<!-- Ben Baumer, Smith College and Dr. Ryne Vankrevelen, Elon University. We could not have completed this project without you all and we sincerely appreciate your help. -->

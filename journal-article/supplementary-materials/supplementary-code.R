@@ -40,8 +40,8 @@ ohl_21 <- ohl %>%
   filter(season == "2021-2022", league == "OHL")
 
 # team level stats
-ohl_team_19 <- read_csv("../../data/OHL_team_stats_19_20.csv")
-ohl_team_21 <- read_csv("../../data/OHL_team_stats_21_22.csv")
+ohl_team_19 <- read_csv("../data/OHL_team_stats_19_20.csv")
+ohl_team_21 <- read_csv("../data/OHL_team_stats_21_22.csv")
 
 ohl_team_19 <- ohl_team_19 %>%
   dplyr::select(Team, GF) %>%
@@ -79,7 +79,7 @@ ohl_combined_21 <- sam_team_goals_21 %>%
 ohl_combined <- ohl_combined_19 %>%
   full_join(ohl_combined_21, by = "team_name")
 
-saveRDS(ohl_combined, "data_integ_table.rds")
+saveRDS(ohl_combined, "./supplementary-materials/rds-files/data_integ_table.rds")
 
 # EDA ---------------------------------------------------------------------
 
@@ -105,7 +105,7 @@ trt_pp_plot <- ggplot(ohl_filtered, aes(x = ppg_21, color = treatment)) +
 
 prelim_plots <- plot_grid(pp_plot, trt_pp_plot, ncol = 1)
 
-saveRDS(prelim_plots, "./supplementary-materials/prelim_plots.rds")
+saveRDS(prelim_plots, "./supplementary-materials/rds-files/prelim_plots.rds")
 
 ## Age
 
@@ -133,7 +133,7 @@ age_trt_plot <- ggplot(ohl_filtered, aes(x = age_continuous, color = treatment))
 
 age_plots <- plot_grid(age_pp_plot, age_trt_plot, ncol = 1)
 
-saveRDS(age_plots, "./supplementary-materials/age_plots.rds")
+saveRDS(age_plots, "./supplementary-materials/rds-files/age_plots.rds")
 
 ## Games Played (GP)
 
@@ -161,7 +161,7 @@ gp_trt_plot <- ggplot(ohl_filtered, aes(x = gp_21, color = treatment)) +
 
 gp_plots <- plot_grid(gp_pp_plot, gp_trt_plot, ncol = 1)
 
-saveRDS(gp_plots, "./supplementary-materials/gp_plots.rds")
+saveRDS(gp_plots, "./supplementary-materials/rds-files/gp_plots.rds")
 
 ## Previous Player Performance
 
@@ -189,7 +189,7 @@ ppp_trt_plot <- ggplot(ohl_filtered, aes(x = ppg_19, color = treatment)) +
 
 ppp_plots <- plot_grid(gp_pp_plot, ppp_trt_plot, ncol = 1)
 
-saveRDS(ppp_plots, "./supplementary-materials/ppp_plots.rds")
+saveRDS(ppp_plots, "./supplementary-materials/rds-files/ppp_plots.rds")
 
 ## Position
 
@@ -221,7 +221,7 @@ pos_trt_plot <- ggplot(ohl_filtered) +
 
 pos_plots <- plot_grid(pos_pp_plot, pos_trt_plot, ncol = 1)
 
-saveRDS(pos_plots, "./supplementary-materials/pos_plots.rds")
+saveRDS(pos_plots, "./supplementary-materials/rds-files/pos_plots.rds")
 
 # Models ------------------------------------------------------------------
 
@@ -396,7 +396,7 @@ rmse_bart <- sqrt(mean(bart_residuals^2))
 rmse_table <- tibble(model = c("BART", "mixed effects", "OLS interaction", "OLS", "intercept-only", "matched", "gamma simple", "gamma interaction"),
        RMSE = c(rmse_bart, rmse_lmer, rmse_ols_int, rmse_ols, rmse_matched, rmse_baseline, rmse_gamma_sim, rmse_gamma_int))
 
-saveRDS(rmse_table, "./supplementary-materials/rmse_table.rds")
+saveRDS(rmse_table, "./supplementary-materials/rds-files/rmse_table.rds")
 
 ### Regression
 
@@ -414,7 +414,7 @@ ols_plot <- ohl_filtered %>%
        x = "Predicted PPG in post-COVID season",
        y = "Actual PPG in Post-COVID Season")
 
-saveRDS(ols_plot, "./supplementary-materials/ols_plot.rds")
+saveRDS(ols_plot, "./supplementary-materials/rds-files/ols_plot.rds")
 
 shane_demo <- ohl_filtered %>%
   mutate(ols_pred = ohl_mlr_final$fitted.values,
@@ -422,7 +422,7 @@ shane_demo <- ohl_filtered %>%
   filter(player_id == 526239) %>%
   dplyr::select(treatment, position, ppg_19, gp_21, age_continuous, ppg_21, ols_pred)
 
-saveRDS(shane_demo, "./supplementary-materials/shane_demo.rds")
+saveRDS(shane_demo, "./supplementary-materials/rds-files/shane_demo.rds")
 
 ### BART
 
@@ -443,7 +443,7 @@ posterior_treat_eff <-
 bart_draws <- posterior_treat_eff %>%
   ggplot() +
   geom_histogram(aes(x = cte), bins = 50, color = "white") +
-  geom_vline(xintercept = 0, color = "red", size = 1) +
+  geom_vline(xintercept = 0, color = "red", linewidth = 1) +
   theme_bw() + ggtitle("Treatment effect (all draws)")
 
 #saveRDS(bart_draws, "./supplementary-materials/bart_draws.rds")
@@ -454,7 +454,7 @@ bart_draws <- posterior_treat_eff %>%
 bart_means <- posterior_treat_eff %>% summarise(cte_hat = mean(cte)) %>%
   ggplot() +
   geom_histogram(aes(x = cte_hat), bins = 60, colour = "white") +
-  geom_vline(xintercept = 0, color = "red", size = 1) +
+  geom_vline(xintercept = 0, color = "red", linewidth = 1) +
   theme_bw() +
   ggtitle("Treatment effect (mean for each subject)")
 
@@ -462,7 +462,7 @@ bart_means <- posterior_treat_eff %>% summarise(cte_hat = mean(cte)) %>%
 
 bart_plots <- plot_grid(bart_draws, bart_means, ncol = 1)
 
-saveRDS(bart_plots, "./supplementary-materials/bart_plots.rds")
+saveRDS(bart_plots, "./supplementary-materials/rds-files/bart_plots.rds")
 
 ## CIs of the CATEs
 
@@ -472,6 +472,7 @@ bart_cates <- posterior_treat_eff %>% dplyr::select(-treatment) %>% point_interv
   ggplot() +
   geom_interval(aes(x = .orow, y= cte, ymin = .lower, ymax = .upper)) +
   geom_point(aes(x = .orow, y = cte), shape = "circle open", alpha = 0.5) +
+  geom_hline(yintercept = 0, color = "red", linewidth = 1) +
   ylab("Median posterior CATE for each subject (95% CI)") +
   theme_bw() + coord_flip() + scale_colour_brewer() +
   theme(axis.title.y = element_blank(),
@@ -479,7 +480,7 @@ bart_cates <- posterior_treat_eff %>% dplyr::select(-treatment) %>% point_interv
         axis.ticks.y = element_blank(),
         legend.position = "none")
 
-saveRDS(bart_cates, "./supplementary-materials/bart_cates.rds")
+saveRDS(bart_cates, "./supplementary-materials/rds-files/bart_cates.rds")
 
 # Limitations -------------------------------------------------------------
 
@@ -507,4 +508,4 @@ ols_qq_plot <- ggplot(ols_data, aes(sample = ppg_21)) +
 
 ols_lim_plots <- cowplot::plot_grid(ols_res_plot, ols_qq_plot, ncol = 1)
 
-saveRDS(ols_lim_plots, "./supplementary-materials/ols_lim_plots.rds")
+saveRDS(ols_lim_plots, "./supplementary-materials/rds-files/ols_lim_plots.rds")

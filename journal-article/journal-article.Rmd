@@ -70,7 +70,7 @@ Previous work in this area has investigated the impact of injury on player devel
 
 # Data
 
-Our dataset includes skaters (excludes goalies) who played in the Ontario Hockey League (OHL) during both the pre-COVID (2019-2020) and post-COVID (2021-2022) seasons. The dataset also contains information regarding other leagues they have participated in during their career. There is data about season, team, league, points, games played, position, and drafted status. Each row is a player on a certain team in a specific season. There are 219 observations in the dataset. The data was sourced from Elite Prospects and was supplied by our external advisor, Dr. Sam Ventura.
+Our dataset includes skaters (excludes goalies) who played in the Ontario Hockey League (OHL) during both the pre-COVID (2019-2020) and post-COVID (2021-2022) seasons. The dataset also contains information regarding other leagues they have participated in during their career. There is data about season, team, league, points, games played, position, and drafted status. Each row is a player on a certain team in a specific season. There are 219 observations in the dataset. The data was sourced from Elite Prospects and was supplied by our external advisor.
 
 ```{r, sample-rows, echo = FALSE}
 ohl_filtered %>% 

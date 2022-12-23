@@ -161,7 +161,7 @@ pos_plots
 
 # Methods
 
-Before performing causal analysis, we used traditional statistical inference methods to determine whether playing during the COVID season had a significant effect on post-COVID player performance while controlling for variables (and interactions between variables) suspected to be associated with the response through exploratory data analysis (EDA). When possible, we attempted a few different measures of player performance, including PPG z-scores (to control for differences in overall scoring across seasons) and relative plus-minus scores. All code is available in the supplementary code document of the supplementary materials folder @sezgin.
+Before performing causal analysis, we used traditional statistical inference methods to determine whether playing during the COVID season had a significant effect on post-COVID player performance while controlling for variables (and interactions between variables) suspected to be associated with the response through exploratory data analysis (EDA). When possible, we attempted a few different measures of player performance, including PPG z-scores (to control for differences in overall scoring across seasons) and relative plus-minus scores. All code is available in the supplementary code document of the supplementary materials folder @author.
 
 For all methods \(\epsilon \sim N(0, \sigma^2)\)
 

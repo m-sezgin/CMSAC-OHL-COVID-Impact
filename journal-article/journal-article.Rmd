@@ -399,8 +399,8 @@ When studying the effects of the pandemic hockey restrictions on OHL hockey play
 
 # Acknowledgments
 
-Thank you to our external advisor Dr. Sam Ventura and our professor and advisor, Dr. Ron Yurko. Additional thanks to professors and universities, we could not have completed this project without them and we sincerely appreciate their help.
+Thank you to our external advisors, professors, and universities, we could not have completed this project without them and we sincerely appreciate their help.
 
 \pagebreak
 
-<!-- Ben Baumer, Smith College and Dr. Ryne Vankrevelen, Elon University. We could not have completed this project without you all and we sincerely appreciate your help. -->
+<!--to our external advisor Dr. Sam Ventura and our professor and advisor, Dr. Ron Yurko Ben Baumer, Smith College and Dr. Ryne Vankrevelen, Elon University. We could not have completed this project without you all and we sincerely appreciate your help. -->

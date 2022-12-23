@@ -133,6 +133,8 @@ ohl_names <- ohl %>%
   filter(duplicated(player_id) == FALSE)
 
 ohl_filtered <- left_join(ohl_filtered, ohl_names, by = "player_id")
+
+write.csv(ohl_filtered, file = "~/Desktop/ohl_filtered.csv")
 ```
 
 Our dataset is comprised of players who played in the Ontario Hockey League (OHL) during both the pre-COVID (2019-2020) and post-COVID (2021-2022) seasons. The dataset also includes information regarding other leagues they have played in during their career. There is information regarding season, team, league, points, games played, position, and drafted status. Each row is a player on a certain team in a specific season.
@@ -386,7 +388,7 @@ ohl_lmer <- lmer(ppg_21 ~ position + ppg_19 + gp_19 + age_continuous + drafted_1
 summary(ohl_lmer)
 ```
 
-```{r, include = FALSE}
+```{r, include = TRUE}
 league_effects <- REsim(ohl_lmer)
 
 league_effects %>%
@@ -409,6 +411,13 @@ plotREsim(league_effects, labs = TRUE)
 
 ```{r}
 ohl_filtered %>%
+ group_by(covid_league) %>%
+ summarize(n())
+```
+
+
+```{r}
+ohl_filtered %>%
   filter(covid_league %in% c("HockeyEttan", "SL", "WJC-18")) %>%
   group_by(covid_league) %>%
   summarize(n())
@@ -423,6 +432,7 @@ summary(ohl_mlr_final)
 ```
 
 ```{r}
+rmse_baseline <- sqrt(mean)
 rmse_ols <- sqrt(mean(ohl_mlr$residuals^2))
 rmse_ols_int <- sqrt(mean(ohl_mlr_interaction$residuals^2))
 rmse_gamma_sim <-sqrt(mean(ohl_glm_simple$residuals^2))
@@ -441,7 +451,7 @@ The most appropriate regression model fit was OLS regression. The model explaine
 
 #### The results of the OLS regression model are as follows:
 
-\(\widehat{\text{Player Performance}} = 0.901 + 0.0655*\text{Treatment} + 0.188*\text{Forward} +  0.862*\text{Player Quality} +  0.00559*\text{Games Played Post-COVID}\\- 0.0556*\text{Age} \)
+\(\widehat{\text{Player Performance}} = 1.14 + 0.053*\text{Treatment} + 0.18*\text{Forward} +  0.89*\text{Player Quality} +  0.006*\text{Games Played Post-COVID}\\- 0.07*\text{Age} \)
 
 ```{r, fig.align='center'}
 ohl_filtered %>%
@@ -459,9 +469,9 @@ ohl_filtered %>%
        y = "Actual PPG in Post-COVID Season")
 ```
 
-* Coefficients for position, games played in post-COVID season, and age were all found to be statistically significant from 0 at the \(\alpha = 0.05\) level.
+* Coefficients for position, games played in post-COVID season, age, and previous player quality were all found to be statistically significant from 0 at the \(\alpha = 0.01\) level.
 
-* The model explains approximately 59% of the variation in player performance in the post-COVID season, which is a statistically significant amount at the \(\alpha = .001\) level \(F(5, 213) = 62.78, p<.001\).
+* The model explains approximately 59% of the variation in player performance in the post-COVID season, which is a statistically significant amount at the \(\alpha = .001\) level \(F(5, 213) = 62.88, p<.001\).
 
 ```{r, include = FALSE}
 confint(ohl_mlr_final)
@@ -581,24 +591,24 @@ An appeal of BART is that it controls overfitting, which is one issue with norma
 ```{r bart-data, include = FALSE}
 # ohl_update <- ohl_filtered
 # 
-# # ohl_filtered_b <- ohl_filtered_b %>% 
+# # ohl_filtered_b <- ohl_filtered_b %>%
 # #   mutate(got_drafted = case_when(!is.na(draft_year) & draft_year < 2020
 # #                                  ~ 'Yes',
 # #                                  TRUE ~ 'No'))
 # 
 # # convert treatment to binary indicator:
-# # ohl_update <- ohl_filtered_b %>% 
+# # ohl_update <- ohl_filtered_b %>%
 # #   mutate(treatment = ifelse(treatment == "Played", 1, 0),
 # #          treatment = as.integer((treatment)))
 # 
 # # convert categorical variables to binary
-# ohl_update <- ohl_update %>% 
-#   mutate(is_forward = case_when(position == "F" ~ 1, 
-#                                 position == "D" ~ 0)) %>% 
+# ohl_update <- ohl_update %>%
+#   mutate(is_forward = case_when(position == "F" ~ 1,
+#                                 position == "D" ~ 0)) %>%
 #   mutate(is_drafted = case_when(drafted_19 == "Yes" ~ 1,
-#                                 drafted_19 == "No" ~ 0)) %>% 
+#                                 drafted_19 == "No" ~ 0)) %>%
 #   # mutate(s_played = case_when(season == "2021-2022" ~ 1,
-#   #                             season == "2019-2020" ~ 0)) %>% 
+#   #                             season == "2019-2020" ~ 0)) %>%
 #   as.data.frame()
 ```
 
@@ -616,14 +626,14 @@ An appeal of BART is that it controls overfitting, which is one issue with norma
 #                        ntree = 25,
 #                        ndpost = 50)
 # # without draft
-# var_select_bart_nodr <- wbart(x.train = dplyr::select(ohl_update, gp_19,
-#                                                  pts_19, age_continuous, 
-#                                                  pm_relative_19, pm_19, 
-#                                                  is_forward, ppg_19),
-#                        y.train = pull(ohl_update, ppg_21),
-#                        sparse = TRUE,
-#                        ntree = 25,
-#                        ndpost = 50)
+var_select_bart_nodr <- wbart(x.train = dplyr::select(ohl_update, gp_19,
+                                                 pts_19, age_continuous,
+                                                 pm_relative_19, pm_19,
+                                                 is_forward, ppg_19),
+                       y.train = pull(ohl_update, ppg_21),
+                       sparse = TRUE,
+                       ntree = 25,
+                       ndpost = 50)
 ```
 
 ```{r}

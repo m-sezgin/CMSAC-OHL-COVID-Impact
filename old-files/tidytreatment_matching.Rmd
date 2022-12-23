@@ -1,0 +1,338 @@
+---
+title: "Does Not Playing Hockey Make You Worse At Hockey?"
+subtitle: "BART and Matching"
+author: "Jackie Jovanovic & Michele Sezgin"
+output: 
+  html_document:
+    code_folding: hide
+date: 'July 27th, 2022'
+---
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300&family=Source+Sans+Pro&display=swap" rel="stylesheet">
+<style>
+
+body{
+font-family: 'Source Sans Pro', sans-serif;
+}
+
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+Project Motivation: Investigate the impact of pandemic restrictions on hockey player development.
+
+In 2020-2021, many hockey leagues had either a shortened season or no season at all due to COVID-19. When a league, such as the OHL, was shutdown, players had to find different leagues and/or tournaments to participate in. Some players were unable to practice with a team for that season. How did this disruption in training influence a player's development? To answer this question, we will examine data from the 2019-2020, 2020-2021, and 2021-2022 seasons for junior leagues.
+
+```{r load-packages, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(BART)
+library(tidytreatment)
+library(dplyr)
+library(tidybayes)
+library(ggplot2)
+library(MatchIt)
+library(cobalt)
+library(mgcv)
+library(lubridate)
+```
+
+
+```{r code-chunk-label}
+# Rethink data
+
+ohl <- read_csv("sams_ohl_data_request.csv")
+
+# Create df of players who played during covid w total gp and if they played championship
+ohl_treatment_prep <- ohl %>%
+  filter(season == "2020-2021") %>%
+  group_by(player_id) %>%
+  mutate(gp_covid = sum(gp),
+         championship = ifelse(league %in% c("WC","WJC-18", "WJC-20"), TRUE, FALSE),
+         covid_league = league) %>%
+  ungroup() %>%
+  dplyr::select(player_id, gp_covid, championship, covid_league) %>%
+  filter(duplicated(player_id) == FALSE)
+
+# Compute player quality vars using pm
+ohl_pm <- ohl %>%
+  filter(season == "2019-2020", league == "OHL") %>%
+  group_by(team_name) %>%
+  arrange(team_name, desc(pm)) %>%
+  mutate(pm_rank = 1:n(),
+         pm_relative = pm - mean(pm)
+  ) %>%
+  ungroup() %>%
+  dplyr::select(player_id, team_name, pm_rank, pm_relative)
+
+# We need to check that each player played in the OHL in 2019-2020 and 2021-2022
+ohl_szn <- ohl %>%
+  filter(season %in% c("2019-2020", "2021-2022"), league == "OHL") %>%
+  group_by(player_id) %>%
+  mutate(played_2019 = season == "2019-2020",
+         played_2021 = season == "2021-2022",
+         played_both_szn = sum(played_2019) & sum(played_2021)) %>%
+  ungroup() %>%
+  filter(played_both_szn == TRUE)
+  
+ohl_21_22_ppg <- ohl_szn %>%
+  filter(season == "2021-2022") %>%
+  group_by(player_id) %>%
+  filter(duplicated(player_id) == FALSE) %>%
+  mutate(ppg_21_22 = sum(pts)/sum(gp),
+         gp_21_22 = sum(gp)) %>%
+  dplyr::select(player_id, ppg_21_22, gp_21_22)
+
+# Add treatment vars and pm
+ohl_treatment <- ohl_szn %>%
+  filter(season == "2019-2020") %>%
+  left_join(ohl_treatment_prep, by = "player_id") %>%
+  left_join(ohl_pm, by = c("player_id", "team_name")) %>%
+  replace_na(list(gp_covid = 0, championship = FALSE))
+
+# add age variable
+ohl_age <- ohl_treatment %>%
+  group_by(player_id) %>%
+  mutate(age = trunc((dob %--% as.Date("2020-01-01")) / years(1)),
+         age_continuous = (dob %--% as.Date("2020-01-01")) / years(1)
+  ) %>%
+  ungroup()
+
+# summarizing variables, adding player performance as ppg
+ohl_performance <- ohl_age %>%
+  group_by(player_id) %>%
+  mutate(ppg_19_20 = sum(pts)/sum(gp),
+         gp_19_20 = sum(gp),
+         pts_19_20 = sum(pts),
+         pm_relative_19_20 = mean(pm_relative),
+         pm_rank_19_20 = trunc(mean(pm_rank)),
+         pm_19_20 = pm,
+         treatment = ifelse(gp_covid > 0, "Played", "Didn't Play")
+  ) %>%
+  arrange(player_id, season) %>%
+  filter(duplicated(player_id) == FALSE) %>%
+  ungroup()
+
+# were they drafted?
+ohl_drafted <- ohl_performance %>%
+  mutate(drafted = case_when(draft_year != 2021 ~ TRUE,
+                             draft_year == NA ~ FALSE,
+                             TRUE ~ FALSE))
+
+# add 2021 ppg
+ohl_filtered <- ohl_drafted %>%
+  left_join(ohl_21_22_ppg, by = "player_id")
+
+# clean up
+ohl_filtered <- ohl_filtered %>%
+  dplyr::select(season, player_id, championship, gp_19_20, first_name, last_name, position, age, gp_19_20, pts_19_20, ppg_19_20, drafted, draft_year, round, overall_pick_num, age_continuous, pm_relative_19_20, pm_rank_19_20, pm_19_20, treatment, ppg_21_22, gp_covid, gp_21_22, covid_league)
+```
+
+
+```{r data, message = FALSE, warning = FALSE}
+library(readr)
+
+#ohl_filtered <- read_csv("ohl_filtered.csv")
+
+ohl_filtered <- ohl_filtered %>% 
+  mutate(got_drafted = case_when(!is.na(draft_year) & draft_year < 2020
+                                 ~ 'Yes',
+                                 TRUE ~ 'No'))
+
+# Convert treatment to binary indicator:
+ohl_filtered <- ohl_filtered %>%
+  mutate(treatment_num = ifelse(treatment == "Played", 1, 0))
+
+ohl_update <- ohl_filtered %>% 
+  mutate(is_forward = case_when(position == "F" ~ 1, 
+                                position == "D" ~ 0)) %>% 
+  mutate(is_drafted = case_when(got_drafted == "Yes" ~ 1,
+                                got_drafted == "No" ~ 0)) %>% 
+  # mutate(played_covid = case_when(treatment == "TRUE" ~ 1,
+  #                                treatment == "FALSE" ~ 0)) %>% 
+  mutate(s_played = case_when(season == "2021-2022" ~ 1,
+                              season == "2019-2020" ~ 0)) %>% 
+  as.data.frame()
+```
+
+## Using tidytreatment with BART
+
+```{r fit-var-sel-model, message = FALSE, warning = FALSE}
+### fit variable selection model
+var_select_bart <- wbart(x.train = select(ohl_update, gp_19_20, pts_19_20, 
+                                         age_continuous, pm_relative_19_20, 
+                                         pm_rank_19_20, pm_19_20, is_forward, 
+                                         is_drafted),
+                        y.train = pull(ohl_update, ppg_19_20),
+                        sparse = TRUE,
+                        nskip = 2000,
+                        ndpost = 5000)
+
+### variable selection
+covar_ranking <- covariate_importance(var_select_bart)
+var_select <- covar_ranking %>% 
+  filter(avg_inclusion >= quantile(avg_inclusion, 0.5)) %>% 
+  pull(variable)
+
+### fit a propensity score model
+prop_bart <- pbart(x.train = select(ohl_update, all_of(var_select)),
+                   y.train = pull(ohl_update, treatment),
+                   nskip = 2000,
+                   ndpost = 5000)
+
+### store propensity score in data
+ohl_update$prop_score <- prop_bart$prob.train.mean
+
+### fit the treatment effect model
+te_model <- wbart(x.train = select(ohl_update, gp_19_20, pts_19_20, 
+                                   age_continuous, pm_relative_19_20, 
+                                   pm_rank_19_20, pm_19_20, is_forward, 
+                                   is_forward, 
+                                   is_drafted, treatment_num, prop_score),
+                                   # need to include treatment and prop score)
+                  y.train = pull(ohl_update, ppg_19_20),
+                  nskip = 10000L,
+                  ndpost = 200L,
+                  keepevery = 100L)
+
+### extract the posterior
+posterior_fitted <- fitted_draws(te_model, value = "fit",
+                                 include_newdata = FALSE)
+posterior_fitted
+
+# function to tidy predicted draws and add random normal noise by default
+
+posterior_pred <- predicted_draws(te_model, include_newdata = FALSE)
+
+### plots using tidybayes
+treatment_var_and_c1 <- ohl_update %>% 
+  dplyr::select(treatment_num, is_forward) %>% 
+  mutate(.row = 1:n(), treatment_num = as.factor(treatment_num))
+
+posterior_fitted %>% 
+  left_join(treatment_var_and_c1, by = ".row") %>% 
+  ggplot() +
+  stat_halfeye(aes(x = treatment, y = fit)) +
+  facet_wrap(~is_forward, labeller = 
+               as_labeller( function(x) paste("is_forward =",x) ) ) +
+  xlab("Treatment (played_covid)") + ylab("Posterior predicted value") +
+  theme_bw() + 
+  ggtitle("Effect of treatment with 'is_forward' on posterior fitted value")
+
+### calculate the treatment effects
+# sample based (using data from fit) conditional treatment effects,
+# posterior draws
+posterior_treat_eff <- 
+  treatment_effects(te_model, treatment = "treatment", 
+                    # The dataset here needs to match the BART data EXACTLY
+                    # which is really annoying...
+                    newdata = select(ohl_update, gp_19_20, pts_19_20, 
+                                     age_continuous, pm_relative_19_20, 
+                                     pm_rank_19_20, pm_19_20, is_forward, 
+                                     is_drafted,
+                                     treatment, prop_score))
+
+# Now plot:
+posterior_treat_eff %>% 
+  ggplot() +
+  geom_histogram(aes(x = cte), bins = 30, colour = "white") + 
+  theme_bw() + ggtitle("Histogram of treatment effect (all draws)")
+
+```
+
+## Matching
+
+```{r include=FALSE}
+# ohl_filtered_m <- read_csv("ohl_filtered.csv")
+# 
+# ohl_filtered_m <- ohl_filtered_m %>% 
+#   mutate(got_drafted = case_when(!is.na(draft_year) & draft_year < 2020
+#                                  ~ 'Yes',
+#                                  TRUE ~ 'No'))
+# ohl_filtered2 <- ohl_filtered_m
+# 
+# # from bart -> make treatment binary
+# ohl_filtered2 <- ohl_filtered2 %>% 
+#   mutate(treatment = ifelse(treatment == "Played", 1, 0),
+#          treatment = as.integer((treatment)))
+```
+
+
+Includes the most variables:
+```{r message = FALSE, warning = FALSE, fig.align='center'}
+
+# ohl_filtered2 <- ohl_filtered2 %>% 
+#   mutate(treatment = ifelse(treatment == "Played", 1, 0),
+#          treatment = as.integer((treatment)))
+
+gam_propensity_match <- 
+  matchit(treatment_num ~ gp_19_20 + position + pts_19_20 + ppg_19_20 + 
+            age_continuous + pm_19_20, 
+          data = ohl_filtered, method = "nearest",
+          distance = "gam",
+          replace = FALSE, # do not reuse controls
+          ratio = 1)
+
+summary(gam_propensity_match)
+plot(gam_propensity_match, type = "jitter", interactive = FALSE)
+```
+
+Does not have pts_19_20:
+```{r message = FALSE, warning = FALSE, fig.align='center'}
+# does not have pts_19_20
+gam_propensity_match2 <- 
+  matchit(treatment_num ~ gp_19_20 + position + ppg_19_20 + 
+            age_continuous + pm_19_20, 
+          data = ohl_filtered, method = "nearest",
+          distance = "gam",
+          replace = FALSE, # do not reuse controls
+          ratio = 1)
+summary(gam_propensity_match2) # lowest Std. Pair Dist.
+plot(gam_propensity_match2, type = "jitter", interactive = FALSE)
+plot(summary(gam_propensity_match2))
+```
+
+Does not have pts_19_20 or pm_19_20:
+```{r message = FALSE, warning = FALSE, fig.align='center'}
+# does not have pm_19_20
+gam_propensity_match3 <- 
+  matchit(treatment_num ~ gp_19_20 + position + ppg_19_20 + 
+            age_continuous, 
+          data = ohl_filtered, method = "nearest",
+          distance = "gam",
+          replace = FALSE, # do not reuse controls
+          ratio = 1)
+summary(gam_propensity_match3)
+plot(gam_propensity_match3, type = "jitter", interactive = FALSE)
+plot(summary(gam_propensity_match3))
+```
+
+```{r message = FALSE, warning = FALSE, fig.align='center'}
+# just matched data
+gam_matched <- match.data(gam_propensity_match)
+table(gam_matched$treatment)
+```
+
+
+```{r message = FALSE, warning = FALSE, fig.align='center'}
+bal.plot(gam_propensity_match, var.name = "distance") # look into
+bal.plot(gam_propensity_match2, var.name = "distance")
+bal.plot(gam_propensity_match3, var.name = "distance")
+```
+
+```{r message = FALSE, warning = FALSE, fig.align='center'}
+bal.plot(gam_propensity_match, var.name = "gp_19_20")
+bal.plot(gam_propensity_match, var.name = "pts_19_20") # look into
+bal.plot(gam_propensity_match, var.name = "ppg_19_20") # look into
+bal.plot(gam_propensity_match, var.name = "age_continuous")
+bal.plot(gam_propensity_match, var.name = "pm_19_20")
+bal.plot(gam_propensity_match, var.name = "position")
+```
+
+
+

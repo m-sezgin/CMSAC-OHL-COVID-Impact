@@ -1,0 +1,406 @@
+---
+title: "Does not playing hockey make you worse at hockey?"
+subtitle: "Project progress"
+author: "Michele Sezgin"
+date: "`r Sys.Date()`"
+output: openintro::lab_report
+---
+
+```{r load-packages, message=FALSE}
+library(tidyverse)
+library(openintro)
+library(lubridate)
+library(DHARMa)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+```
+
+```{r code-chunk-label}
+# Rethink data
+
+ohl <- read_csv("../sams_ohl_data_request.csv")
+
+# Create df of players who played during covid w total gp and if they played championship
+ohl_treatment_prep <- ohl %>%
+  filter(season == "2020-2021") %>%
+  group_by(player_id) %>%
+  arrange(desc(gp)) %>%
+  mutate(gp_covid = sum(gp),
+         championship = ifelse(league %in% c("WC","WJC-18", "WJC-20"), TRUE, FALSE),
+         covid_league = league[1]) %>%
+  ungroup() %>%
+  dplyr::select(player_id, gp_covid, championship, covid_league) %>%
+  filter(duplicated(player_id) == FALSE)
+
+# Compute player quality vars using pm
+ohl_pm <- ohl %>%
+  filter(season == "2019-2020", league == "OHL") %>%
+  group_by(team_name) %>%
+  arrange(team_name, desc(pm)) %>%
+  mutate(pm_rank = 1:n(),
+         pm_relative = pm - mean(pm)
+  ) %>%
+  ungroup() %>%
+  dplyr::select(player_id, team_name, pm_rank, pm_relative)
+
+# We need to check that each player played in the OHL in 2019-2020 and 2021-2022
+ohl_szn <- ohl %>%
+  filter(season %in% c("2019-2020", "2021-2022"), league == "OHL") %>%
+  group_by(player_id) %>%
+  mutate(played_2019 = season == "2019-2020",
+         played_2021 = season == "2021-2022",
+         played_both_szn = sum(played_2019) & sum(played_2021)) %>%
+  ungroup() %>%
+  filter(played_both_szn == TRUE)
+  
+ohl_21_22_ppg <- ohl_szn %>%
+  filter(season == "2021-2022") %>%
+  group_by(player_id) %>%
+  filter(duplicated(player_id) == FALSE) %>%
+  mutate(ppg_21_22 = sum(pts)/sum(gp),
+         gp_21_22 = sum(gp)) %>%
+  dplyr::select(player_id, ppg_21_22, gp_21_22)
+
+# Add treatment vars and pm
+ohl_treatment <- ohl_szn %>%
+  filter(season == "2019-2020") %>%
+  left_join(ohl_treatment_prep, by = "player_id") %>%
+  left_join(ohl_pm, by = c("player_id", "team_name")) %>%
+  replace_na(list(gp_covid = 0, championship = FALSE))
+
+# add age variable
+ohl_age <- ohl_treatment %>%
+  group_by(player_id) %>%
+  mutate(age = trunc((dob %--% as.Date("2020-01-01")) / years(1)),
+         age_continuous = (dob %--% as.Date("2020-01-01")) / years(1)
+  ) %>%
+  ungroup()
+
+# summarizing variables, adding player performance as ppg
+ohl_performance <- ohl_age %>%
+  group_by(player_id) %>%
+  mutate(ppg_19_20 = sum(pts)/sum(gp),
+         gp_19_20 = sum(gp),
+         pts_19_20 = sum(pts),
+         pm_relative_19_20 = mean(pm_relative),
+         pm_rank_19_20 = trunc(mean(pm_rank)),
+         pm_19_20 = pm,
+         treatment = ifelse(gp_covid > 0, "Played", "Didn't Play")
+  ) %>%
+  arrange(player_id, season) %>%
+  filter(duplicated(player_id) == FALSE) %>%
+  ungroup()
+
+# were they drafted?
+ohl_drafted <- ohl_performance %>%
+  mutate(drafted = case_when(draft_year != 2021 ~ TRUE,
+                             draft_year == NA ~ FALSE,
+                             TRUE ~ FALSE))
+
+# add 2021 ppg
+ohl_filtered <- ohl_drafted %>%
+  left_join(ohl_21_22_ppg, by = "player_id")
+
+# clean up
+ohl_filtered <- ohl_filtered %>%
+  dplyr::select(season, player_id, championship, gp_19_20, first_name, last_name, position, age, gp_19_20, pts_19_20, ppg_19_20, drafted, draft_year, round, overall_pick_num, age_continuous, pm_relative_19_20, pm_rank_19_20, pm_19_20, treatment, ppg_21_22, gp_covid, gp_21_22, covid_league)
+```
+
+## Exploratory Data Analysis
+
+### Response: Player Performance Post-COVID Season {.tabset}
+
+#### Treatment vs Performance
+
+```{r, fig.align='center', warning=FALSE, message=FALSE}
+# treatment vs ppg
+ggplot(ohl_filtered, aes(x = ppg_21_22, color = treatment)) +
+  geom_density() +
+  labs(title = "Players who played during COVID season generally had higher PPG in\n2021-22 season",
+       x = "Player Performance (PPG Post-COVID Season)",
+       color = "COVID season") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
+  theme_bw()
+```
+
+#### Age vs Performance
+
+```{r}
+# age vs ppg
+ggplot(ohl_filtered, aes(x = age_continuous, y = ppg_21_22)) +
+  geom_point(alpha = .5) +
+  labs(title = "No relationship between player performance and age",
+       x = "Age pre-COVID",
+       y = "Player Performance (PPG Post-COVID Season)") +
+  theme_bw()
+```
+
+#### GP vs Performance
+
+```{r}
+# gp vs ppg
+ggplot(ohl_filtered, aes(x = gp_21_22, y = ppg_21_22)) +
+  geom_point(alpha = .5) +
+  labs(title = "Positive linear relationship between player performance and GP in \n2021-22 season",
+       x = "GP in 2021-22 Season", 
+       y = "Player Performance (PPG Post-COVID Season)") +
+  theme_bw() +
+  geom_smooth(method = "lm")
+```
+
+#### Drafted vs Performance
+
+```{r}
+# drafted vs ppg
+ggplot(ohl_filtered) +
+  geom_density(aes(x = ppg_21_22, color = drafted)) +
+  labs(title = "Post-covid season player performance generally greater for drafted players",
+       x = "Player Performance (PPG Post-COVID Season)",
+       color = "Drafted") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
+  theme_bw()
+```
+
+#### Player Quality vs Performance
+
+```{r}
+# ppg 2019-20 vs ppg 21-22
+ggplot(ohl_filtered, aes(x = ppg_19_20, y = ppg_21_22)) +
+  geom_point(alpha = .5) +
+  labs(title = "Positive linear relationship between post-COVID season player performance \nand player quality",
+       x = "Player Quality (PPG in pre-COVID Season)",
+       y = "Player Performance (PPG Post-COVID Season)") +
+  geom_smooth(method = "lm") +
+  theme_bw()
+```
+
+#### Position vs PPG
+
+```{r}
+# position vs ppg
+ggplot(ohl_filtered) +
+  geom_density(aes(x = ppg_21_22, color = position)) +
+  labs(title = "Post-COVID season player performance generally greater for forwards",
+       x = "Player Performance (PPG Post-COVID Season)",
+       color = "Position") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
+  theme_bw()
+```
+
+### {-}
+
+### Treatment {.tabset}
+
+#### Drafted vs Treatment
+
+```{r, fig.align='center'}
+# drafted status vs treatment
+mosaicplot(table("Drafted" = ohl_filtered$drafted,
+                 "COVID Season" = ohl_filtered$treatment),
+           main = "Drafted players more likely to have played during COVID season",
+           shade = TRUE)
+```
+
+#### Player Quality vs Treatment
+
+```{r}
+# pm vs treatment
+ggplot(ohl_filtered, aes(x = ppg_19_20, color = treatment)) +
+  geom_density() +
+  labs(title = "Better quality players more likely to have played during COVID season", 
+       x = "Player Quality (PPG in pre-COVID season)",
+       color = "COVID Season") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
+  theme_bw()
+```
+
+#### Age vs Treatment
+
+```{r}
+# age vs treatment
+ggplot(ohl_filtered, aes(x = age_continuous, color = treatment)) +
+  geom_density() +
+  labs(title = "Insignificant difference in age for players who played during COVID season and players who did not", 
+       x = "Age",
+       color = "COVID Season") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
+  theme_bw()
+```
+
+#### GP vs Treatment
+
+```{r}
+# gp vs treatment
+ggplot(ohl_filtered, aes(x = gp_19_20, color = treatment)) +
+  geom_density() +
+  labs(title = "Insignificant difference in GP during 2019-20 season for players\nwho played during COVID season", 
+       x = "GP",
+       color = "COVID season") +
+  scale_color_manual(values = c("royalblue3", "darkgoldenrod3")) +
+  theme_bw()
+```
+
+### {-}
+
+### Explanatory Variable Relationships {.tabset}
+
+#### Age vs Player Quality
+
+```{r}
+ggplot(ohl_filtered, aes(x = age_continuous, y = ppg_19_20)) +
+  geom_point(alpha = .5) +
+  labs(title = "Positive linear relationship between player quality and age",
+       x = "Age pre-COVID",
+       y = "Player Quality (PPG pre-COVID season)")
+```
+
+
+#### Age vs Drafted
+
+```{r}
+ggplot(ohl_filtered, aes(x = age_continuous, color = drafted)) +
+  geom_density() +
+  labs(title = "Drafted players younger",
+       x = "Age pre-COVID")
+```
+
+#### Position vs Player Quality
+
+```{r}
+ggplot(ohl_filtered, aes(x = ppg_19_20, color = position)) +
+  geom_density() +
+  labs(title = "Forwards more likely to be 'quality' players",
+       x = "Player Quality (PPG pre-COVID Season)",
+       color = "Position")
+```
+
+#### 2019-20 GP vs Player Quality
+
+```{r}
+ggplot(ohl_filtered, aes(x = gp_19_20, y = ppg_19_20)) +
+  geom_point(alpha = .5) +
+  theme_bw() +
+  geom_smooth() +
+  labs("Player quality increases non-linearly with GP pre-COVID season",
+       x = "GP pre-COVID Season",
+       y = "Player Quality (PPG pre-COVID Season)")
+```
+
+### {-}
+
+## Modeling
+
+### Linear Models {.tabset}
+
+#### Intercept Only (Average)
+
+```{r}
+intercept_only <- lm(ppg_21_22 ~ 1, data = ohl_filtered)
+summary(intercept_only)
+plot(intercept_only, which = c(1, 2))
+```
+
+
+#### Basic OLS
+
+```{r}
+ohl_mlr <- lm(ppg_21_22 ~ position + ppg_19_20 + treatment + drafted + gp_19_20 + age_continuous, data = ohl_filtered)
+plot(ohl_mlr, which = c(1, 2))
+summary(ohl_mlr)
+```
+
+##### OLS model not predicting PPG below zero anymore!
+
+```{r}
+#min(ohl_mlr$fitted.values)
+```
+
+#### Interaction OLS
+
+```{r}
+# ohl_mlr_interaction <- lm(ppg_21_22 ~ position*ppg_19_20 + drafted*treatment + gp_19_20*ppg_19_20 + age_continuous*ppg_19_20 + ppg_19_20*treatment + ppg_19_20*drafted + drafted*age_continuous + gp_21_22, data = ohl_filtered)
+# plot(ohl_mlr_interaction, which = c(1, 2))
+# summary(ohl_mlr_interaction)
+```
+#### Gamma Regression
+
+```{r}
+# ohl_filtered <- ohl_filtered %>%
+#   mutate(ppg_alt = ppg_21_22 + .001)
+# ohl_glm_interaction <- glm(ppg_alt ~ position*ppg_19_20 + drafted*treatment + gp_19_20*ppg_19_20 + age_continuous*ppg_19_20 + ppg_19_20*treatment + ppg_19_20*drafted + drafted*age_continuous,
+#                           data = ohl_filtered, 
+#                           family = Gamma)
+# plot(ohl_glm_interaction, which = 1)
+# summary(ohl_glm_interaction)
+# simout  <-  simulateResiduals(ohl_glm_interaction)
+# plotSimulatedResiduals(simout) 
+```
+
+Conditions not met for gamma regression, residuals not what we would expect under gamma-distribution.
+
+#### Mixed Effects model
+
+```{r}
+# ggplot(filter(ohl_filtered, treatment == "Played"), aes(x = ppg_21_22, color = covid_league)) +
+#   geom_density()
+```
+
+
+```{r}
+ohl_filtered <- ohl_filtered %>%
+  mutate(treatment_numeric = ifelse(treatment == "Played", 1, 0))
+
+table(ohl_filtered$covid_league)
+
+library(lme4)
+ohl_filtered$new_covid_league <- ifelse(is.na(ohl_filtered$covid_league), "NONE",
+                                        ohl_filtered$covid_league)
+ohl_lmer <- lmer(ppg_21_22 ~ position + ppg_19_20 + drafted + gp_19_20 + age_continuous + treatment_numeric + (treatment_numeric|new_covid_league),
+                     data = ohl_filtered)
+summary(ohl_lmer)
+# anova(ohl_lmer)
+```
+
+```{r}
+VarCorr(ohl_lmer) %>% as_tibble() %>% mutate(icc = vcov / sum(vcov)) %>% dplyr::select(grp, icc)
+library(merTools)
+league_effects <- REsim(ohl_lmer)
+
+
+league_effects %>%
+  as_tibble() %>%
+  group_by(groupFctr) %>%
+  arrange(desc(mean)) %>%
+  slice(1:5, (n() - 4):n()) %>%
+  ggplot(aes(x = reorder(groupID, mean))) +
+  geom_point(aes(y = mean)) +
+  geom_errorbar(aes(ymin = mean - 2 * sd,
+                    ymax = mean + 2 * sd)) +
+  facet_wrap(~groupFctr, ncol = 1, scales = "free_y") +
+  geom_vline(xintercept = 0, linetype = "dashed",
+             color = "red") +
+  coord_flip() +
+  theme_bw() +
+  labs(title = "League effect sizes")
+plotREsim(league_effects, labs = TRUE)
+```
+
+
+### {-}
+
+#### Full model (no interaction) not significantly different from nested model (interaction)
+
+```{r}
+#anova(ohl_mlr, ohl_mlr_interaction)
+```
+
+## Questions/Concerns:
+
+1. Should we limit drafted to be drafted draft year 2019 or 2020, excluding 2021? 
+
+1. Do I need to separate age into pre- and post-covid and use 2019 age in the interaction between age and player quality?
+
+...
+

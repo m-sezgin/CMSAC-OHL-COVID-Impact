@@ -1,0 +1,509 @@
+---
+title: "Does Not Playing Hockey Make You Worse At Hockey?"
+subtitle: "7/25 Progress Check-In"
+author: "Jackie Jovanovic & Michele Sezgin"
+output: 
+  html_document:
+    code_folding: hide
+date: 'July 25th, 2022'
+---
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300&family=Source+Sans+Pro&display=swap" rel="stylesheet">
+<style>
+
+body{
+font-family: 'Source Sans Pro', sans-serif;
+}
+
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+Project Motivation: Investigate the impact of pandemic restrictions on hockey player development.
+
+In 2020-2021, many hockey leagues had either a shortened season or no season at all due to COVID-19. When a league, such as the OHL, was shutdown, players had to find different leagues and/or tournaments to participate in. Some players were unable to practice with a team for that season. How did this disruption in training influence a player's development? To answer this question, we will examine data from the 2019-2020, 2020-2021, and 2021-2022 seasons for junior leagues.
+
+```{r load-packages, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(lubridate)
+library(MatchIt)
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(vip)
+library(RColorBrewer)
+library(viridis)
+```
+
+```{r load-data, message = FALSE, warning = FALSE}
+library(readr)
+sams_ohl_data_request <- read_csv("sams_ohl_data_request.csv")
+View(sams_ohl_data_request)
+
+# filter years
+recent <- sams_ohl_data_request %>% 
+  filter(season %in% c("2019-2020", "2020-2021", "2021-2022"))
+# add points per game columns
+recent <- recent %>% 
+  mutate(ppg = g/gp)
+# add drafted y/n column 
+recent <- recent %>% 
+  mutate(got_drafted = case_when(!is.na(draft_year) ~ 'Yes',
+                                 TRUE ~ 'No'))
+# yes is only plays drafted before COVID
+recent2 <- recent %>% 
+  mutate(got_drafted = case_when(!is.na(draft_year) & draft_year < 2020
+                                 ~ 'Yes',
+                                 TRUE ~ 'No'))
+
+ranks <- recent2 %>% 
+  group_by(team_name, season) %>% 
+  arrange(team_name, season, desc(pm)) %>% 
+  mutate(pm_rank = 1:n(),
+         pm_mean = mean(pm),
+         pm_relative = pm - mean(pm)) %>% 
+  ungroup()
+
+# filter out NA values
+recent3 <- recent2 %>% 
+  filter(!is.na(ppg), !is.na(g), !is.na(pts), !is.na(pm), !is.na(gp),
+         !is.na(a), !is.na(pim))
+ranks2 <- ranks %>% 
+  filter(!is.na(ppg), !is.na(g), !is.na(pts), !is.na(pm), !is.na(gp),
+         !is.na(a), !is.na(pim))
+```
+
+```{r treatment, message = FALSE, warning = FALSE}
+# copied from Michele's midpoint code
+
+# Filtering only for players who played more than 10 games 
+# (should we combine number of games played across leagues?)
+ohl_20_21 <- recent %>%
+  filter(season == "2020-2021", gp > 10)
+# Split players up into treatment vs non-treatment
+ohl_treatment <- recent %>%
+  filter(season %in% c("2019-2020", "2021-2022"), league == "OHL") %>%
+  group_by(player_id, season) %>%
+  mutate(ppg = sum(pts)/sum(gp),
+         treatment = ifelse(player_id %in% ohl_20_21$player_id, "Played", "Didn't play")
+  ) %>%
+  ungroup()
+plyr_quality <- recent %>%
+  filter(season == "2019-2020", league == "OHL") %>%
+  group_by(player_id) %>%
+  mutate(plyr_quality = sum(pts)/sum(gp)) %>%
+  filter(duplicated(player_id) == FALSE) %>%
+  ungroup() %>%
+  select(player_id, plyr_quality)
+ohl_pm <- recent %>%
+  filter(season %in% c("2019-2020", "2021-2022"), league == "OHL") %>%
+  group_by(team_name, season) %>%
+  arrange(team_name, season, desc(pm)) %>%
+  mutate(pm_rank = 1:n(),
+         pm_mean = mean(pm),
+         pm_relative = pm - mean(pm)
+  ) %>%
+  ungroup()
+# We need to check that each player played in the OHL in 2019-2020 and 2021-2022
+ohl_szn <- ohl_pm %>%
+  group_by(player_id) %>%
+  mutate(played_2019 = season == "2019-2020",
+         played_2021 = season == "2021-2022",
+         played_both_szn = sum(played_2019) & sum(played_2021)) %>%
+  ungroup() %>%
+  filter(played_both_szn == TRUE)
+# add treatment variable through join
+ohl_trt <- ohl_szn %>%
+  left_join(select(ohl_treatment, player_id, season, team_name, treatment), by = c("player_id", "team_name", "season")) %>%
+  mutate(ppg = pts/gp) 
+# add age variable
+ohl_age <- ohl_trt %>%
+  group_by(player_id, season) %>%
+  mutate(year = strsplit(season, "-")[[1]][1]) %>%
+  mutate(age = trunc((dob %--% as.Date(paste0(year, "-9-15"))) / years(1)),
+         age_continuous = (dob %--% as.Date(paste0(year, "-09-15"))) / years(1)
+  ) %>%
+  ungroup()
+# add player quality
+ohl_qlty <- ohl_age %>%
+  left_join(plyr_quality, by = "player_id") %>%
+  group_by(player_id, season) %>%
+  mutate(ppg_total = sum(pts)/sum(gp),
+         gp_total = sum(gp),
+         pts_total = sum(pts)) %>%
+  arrange(player_id, season, -plyr_quality) %>%
+  filter(duplicated(player_id) == FALSE) %>%
+  ungroup()
+# were they drafted
+ohl_filtered <- ohl_qlty %>%
+  mutate(drafted = ifelse(!is.na(draft_year) == TRUE, "Yes", "No")) %>%
+  select(season, player_id, treatment, first_name, last_name, position, plyr_quality, age, gp_total, pts_total, ppg_total, drafted, draft_year, round, overall_pick_num, age_continuous, pm_relative, pm_rank, pm)
+```
+
+## Matching
+
+```{r matching, message = FALSE, warning = FALSE, fig.align = 'center'}
+# make a binary treatment variable
+filtered <- ohl_filtered %>% 
+  mutate(num_treatment = case_when(treatment == "Didn't play" ~ 0,
+                                   TRUE ~ 1))
+
+# first matching attempt
+match1 <-
+  matchit(num_treatment ~ position + gp_total + pts_total + ppg_total + drafted +
+            pm_relative + pm_rank + pm,
+          data = filtered, method = "nearest",
+          distance = "mahalanobis",
+          replace = FALSE, ratio = 2)
+summary(match1)
+plot(summary(match1)) # love plot of the covariates
+
+gam_propensity_match1 <- 
+  matchit(num_treatment ~ position + s(gp_total) + s(pts_total) + 
+            s(ppg_total) + drafted + s(pm_relative) + s(pm_rank) + s(pm),
+          data = filtered, method = "nearest",
+          distance = "gam",
+          replace = FALSE, ratio = 2)
+summary(gam_propensity_match1)
+plot(gam_propensity_match1, type = "jitter", interactive = FALSE)
+```
+
+Graph interpretation? Is the data matched up enough?
+
+## Exploring Different Measurements of Player Quality
+
+```{r playerq, message = FALSE, warning = FALSE, fig.align = 'center'}
+# find first-liners
+#ranks %>% 
+ # filter(position == "F" & pm_rank == 1:6)
+#ranks %>% 
+ # filter(position == "D" & pm_rank == 1:2) %>% View()
+```
+
+### Plus-Minus {.tabset}
+
+#### Tournaments
+```{r, message = FALSE, warning = FALSE, fig.align = 'center'}
+ranks2 %>% 
+  filter(league %in% c("International-Jr", "WJC-18", "WJC-20")) %>% 
+  ggplot(aes(x = player_id, y = pm_relative)) +
+  geom_point(aes(color = league), alpha = 0.8) +
+  geom_hline(aes(yintercept = mean(pm_relative)), color = "darkgoldenrod3") +
+  geom_hline(aes(yintercept = 0), color = "goldenrod1") +
+  labs(title = "Tournaments", y = "Relative Plus-Minus") +
+  scale_color_brewer(palette = "Blues") +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        axis.title.x = element_blank()) +
+  theme(legend.position = "bottom") +
+  facet_wrap(~season)
+```
+
+#### AHL
+```{r ahl, message = FALSE, warning = FALSE, fig.align = 'center'}
+ranks2 %>% 
+  filter(league %in% c("AHL")) %>% 
+  ggplot(aes(x = player_id, y = pm_relative)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(aes(yintercept = mean(pm_relative)), color = "darkgoldenrod3") +
+  geom_hline(aes(yintercept = 0), color = "royalblue3", alpha = 0.5) +
+  labs(title = "AHL", y = "Relative Plus-Minus", 
+       caption = "Mean plus-minus is 0.") +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        axis.title.x = element_blank()) +
+  theme(legend.position = "bottom") +
+  facet_wrap(~season)
+```
+
+The AHL does not have any games from the 2019-2020 season.
+
+#### OHL
+```{r ohl, message = FALSE, warning = FALSE, fig.align = 'center'}
+ranks2 %>% 
+  filter(league %in% c("OHL")) %>% 
+  ggplot(aes(x = player_id, y = pm_relative)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(aes(yintercept = mean(pm_relative)), color = "darkgoldenrod3") +
+  geom_hline(aes(yintercept = 0), color = "royalblue3", alpha = 0.5) +
+  labs(title = "OHL", y = "Relative Plus-Minus", 
+       caption = "Mean plus-minus is 0.2016.") +
+  theme_bw() +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(),
+        axis.title.x = element_blank()) +
+  theme(legend.position = "bottom") +
+  facet_wrap(~season)
+```
+
+### {-}
+
+## Differences Between Leagues
+```{r}
+# summary statistics for each league
+leagues1920 <- recent %>% 
+  filter(season == "2019-2020") %>% 
+  group_by(league) %>% 
+  summarize(count = n(), gp = mean(gp), pts = mean(pts), pm = mean(pm),
+            ppg = mean(ppg)) 
+leagues2021 <- recent %>% 
+  filter(season == "2020-2021") %>% 
+  group_by(league) %>% 
+  summarize(count = n(), gp = mean(gp), pts = mean(pts), pm = mean(pm),
+            ppg = mean(ppg))
+leagues2122 <- recent %>% 
+  filter(season == "2021-2022") %>% 
+  group_by(league) %>% 
+  summarize(count = n(), gp = mean(gp), pts = mean(pts), pm = mean(pm),
+            ppg = mean(ppg))
+```
+
+### Points vs. Games Played {.tabset}
+
+#### 2019-2020
+```{r, message=FALSE, warning=FALSE, fig.align='center'}
+leagues1920 %>% 
+  ggplot(aes(x = gp, y = pts)) +
+  geom_point(aes(color = factor(count))) +
+  scale_color_viridis(discrete = TRUE) +
+  labs(title = "2019-2020 Season", 
+       x = "Games Played", y = "Points", color = "Game Count") +
+  theme_bw() 
+```
+
+#### 2020-2021
+```{r, message=FALSE, warning=FALSE, fig.align='center'}
+leagues2021 %>% 
+  ggplot(aes(x = gp, y = pts)) +
+  geom_point(aes(color = factor(count))) +
+  scale_color_viridis(discrete = TRUE) +
+  labs(title = "2020-2021 Season", 
+       x = "Games Played", y = "Points", color = "Game Count") +
+  theme_bw() 
+```
+
+#### 2021-2022
+```{r, message=FALSE, warning=FALSE, fig.align='center'}
+leagues2122 %>% 
+  ggplot(aes(x = gp, y = pts)) +
+  geom_point(aes(color = factor(count))) +
+  scale_color_viridis(discrete = TRUE) +
+  labs(title = "2021-2022 Season", 
+       x = "Games Played", y = "Points", color = "Game Count") +
+  theme_bw() 
+```
+
+### {-}
+
+### Histograms of Counts {.tabset}
+
+#### 2019-2020
+```{r, message=FALSE, warning=FALSE, fig.align='center'}
+leagues1920 %>% 
+  filter(league != "OHL") %>% 
+  ggplot(aes(x = count)) +
+  geom_histogram(color = "white") + 
+  labs(x = "Leagues with Observed Game Count", y = "Count",
+       title = "2019-2020 Season",
+       caption = "36 leagues have one recorded game.
+       OHL has been omitted, they have a count of 510.") +
+  annotate("text", x = 32.5, y = 31, label = "97 Leagues",
+           col = "royalblue3") +
+  theme_bw()
+```
+
+
+#### 2020-2021
+```{r, message=FALSE, warning=FALSE, fig.align='center'}
+leagues2021 %>% 
+  ggplot(aes(x = count)) +
+  geom_histogram(color = "white") + 
+  labs(x = "Leagues with Observed Game Count", y = "Count",
+       title = "2020-2021 Season",
+       caption = "31 leagues have one recorded game.") +
+  annotate("text", x = 21.25, y = 26, label = "71 Leagues",
+           col = "royalblue3") +
+  theme_bw()
+```
+
+
+#### 2021-2022
+```{r, message=FALSE, warning=FALSE, fig.align='center'}
+leagues2122 %>% 
+  filter(league != "OHL") %>% 
+  ggplot(aes(x = count)) +
+  geom_histogram(color = "white") + 
+  labs(x = "Leagues with Observed Game Count", y = "Count",
+       title = "2021-2022 Season",
+       caption = "27 leagues have one recorded game.
+       OHL has been omitted, they have a count of 534.") +
+  annotate("text", x = 22.5, y = 21, label = "49 Leagues",
+           col = "royalblue3") +
+  theme_bw()
+```
+
+
+### {-}
+
+
+## Regression Trees
+
+### Tree 1 {.tabset}
+
+**formula: ppg ~ gp + g + pts + pm**
+
+#### Initial
+```{r message = FALSE, warning = FALSE, fig.align = 'center'}
+#tree 1
+tree1 <- rpart(formula = ppg ~ gp + g + pts + pm,
+              data = recent3, method = "anova")
+#tree1 <- rpart(formula = ppg ~ gp + g + pts + pm + ppg + factor(got_drafted) +
+    #            factor(position),
+     #         data = recent2, method = "anova") # do the factors change?
+rpart.plot(tree1)
+```
+
+#### Trained
+```{r message = FALSE, warning = FALSE, fig.align = 'center'}
+# train the data
+caret_tree1 <- train(ppg ~ gp + g + pts + pm,
+                     data = recent3, method = "rpart",
+                     trControl = trainControl(method = "cv", number = 10),
+                     tuneLength = 20)
+# what do the bottom two lines do?
+rpart.plot(caret_tree1$finalModel)
+# why is it only gp and g?
+```
+
+#### Variable Importance
+```{r message = FALSE, warning = FALSE, fig.align = 'center'}
+vip(caret_tree1, geom = "point") + theme_bw()
+```
+
+### {-}
+
+Questions embedded in code. 
+
+### Tree 2 {.tabset}
+
+**formula: pm ~ gp + g + a + pim + got_drafted**
+
+#### Initial
+```{r message = FALSE, warning = FALSE, fig.align = 'center'}
+tree2 <- rpart(formula = pm ~ gp + g + a + pim + got_drafted,
+               data = recent3, method = "anova")
+rpart.plot(tree2)
+```
+
+#### Trained
+```{r message = FALSE, warning = FALSE, fig.align = 'center'}
+caret_tree2 <- train(pm ~ gp + g + a + pim + got_drafted,
+                     data = recent3, method = "rpart",
+                     trControl = trainControl(method = "cv", number = 10),
+                     tuneLength = 20)
+rpart.plot(caret_tree2$finalModel)
+```
+
+#### Variable Importance
+```{r message = FALSE, warning = FALSE, fig.align = 'center'}
+vip(caret_tree2, geom = "point") + theme_bw()
+```
+
+### {-}
+
+### Tree 3 {.tabset}
+
+**formula: ppg ~ gp + g + pts + pm**
+
+#### Initial
+```{r message = FALSE, warning = FALSE, fig.align = 'center'}
+tree3 <- rpart(formula = ppg ~ gp + g + pts + pm,
+               data = ranks2, method = "anova")
+rpart.plot(tree3)
+```
+
+#### Trained
+```{r message = FALSE, warning = FALSE, fig.align = 'center'}
+caret_tree3 <- train(ppg ~ gp + g + pts + pm,
+                     data = ranks2, method = "rpart",
+                     trControl = trainControl(method = "cv", number = 10),
+                     tuneLength = 20)
+rpart.plot(caret_tree3$finalModel)
+```
+
+#### Variable Importance
+```{r message = FALSE, warning = FALSE, fig.align = 'center'}
+vip(caret_tree3, geom = "point") + theme_bw()
+```
+
+### {-}
+
+### Tree 4 {.tabset}
+
+**formula: pm ~ gp + g + a + pim + got_drafted**
+
+#### Initial
+```{r message = FALSE, warning = FALSE, fig.align = 'center'}
+tree4 <- rpart(formula = pm ~ gp + g + a + pim + got_drafted,
+               data = ranks2, method = "anova")
+rpart.plot(tree4)
+```
+
+#### Trained
+```{r message = FALSE, warning = FALSE, fig.align = 'center'}
+caret_tree4 <- train(pm ~ gp + g + a + pim + got_drafted,
+                     data = ranks2, method = "rpart",
+                     trControl = trainControl(method = "cv", number = 10),
+                     tuneLength = 20)
+rpart.plot(caret_tree4$finalModel)
+```
+
+#### Variable Importance
+```{r message = FALSE, warning = FALSE, fig.align = 'center'}
+vip(caret_tree4, geom = "point") + theme_bw()
+```
+
+### {-}
+
+### Tree 5 {.tabset}
+
+**formula: ppg_total ~ treatment + position + age_continuous + gp_total + pts_total + drafted + pm_relative + pm_rank + pm**
+
+#### Initial
+```{r message = FALSE, warning = FALSE, fig.align = 'center'}
+tree5 <- rpart(formula = ppg_total ~ treatment + position + age_continuous +
+                 gp_total + pts_total + drafted + pm_relative + pm_rank +
+                 pm, 
+               data = filtered, method = "anova")
+rpart.plot(tree5)
+```
+
+#### Trained
+```{r message = FALSE, warning = FALSE, fig.align = 'center'}
+caret_tree5 <- train(ppg_total ~ treatment + position + age_continuous +
+                       gp_total + pts_total + drafted + pm_relative + 
+                       pm_rank + pm,
+                     data = filtered, method = "rpart",
+                     trControl = trainControl(method = "cv", number = 10),
+                     tuneLength = 20)
+rpart.plot(caret_tree5$finalModel)
+```
+
+#### Variable Importance
+```{r message = FALSE, warning = FALSE, fig.align = 'center'}
+vip(caret_tree5, geom = "point") + theme_bw()
+```
+
+### {-}
+
+## Questions
+
+1. What do I put for x.train and y.train in BART?
+1. Questions embedded in Tree 1 code.
+1. How can I make a plot interactive? (scroll over bar to make league name visible)
+

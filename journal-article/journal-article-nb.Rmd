@@ -2,7 +2,7 @@
 title: "Does Not Playing Hockey Make You Worse At Hockey? Investigating the Impact of the COVID-19 Pandemic on Hockey Player development"
 
 # to produce blinded version set to 1
-blinded: 1
+blinded: 0
 
 authors: 
 - name: Michele Sezgin
@@ -70,7 +70,7 @@ Previous work has focused on psychological aspects in player development, such a
 
 # Data
 
-Our dataset includes skaters (excludes goalies) who played in the Ontario Hockey League (OHL) during both the pre-COVID (2019-2020) and post-COVID (2021-2022) seasons. The dataset also contains information regarding other leagues they have participated in during their career. There is data about season, team, league, points, games played, position, and drafted status. Each row is a player on a certain team in a specific season. There are 219 observations in the dataset. The data was sourced from Elite Prospects and was supplied by our external advisor.
+Our dataset includes skaters (excludes goalies) who played in the Ontario Hockey League (OHL) during both the pre-COVID (2019-2020) and post-COVID (2021-2022) seasons. The dataset also contains information regarding other leagues they have participated in during their career. There is data about season, team, league, points, games played, position, and drafted status. Each row is a player on a certain team in a specific season. There are 219 observations in the dataset. The data was sourced from Elite Prospects and was supplied by our external advisor, Sam Ventura.
 
 ```{r, sample-rows, echo = FALSE}
 ohl_filtered %>% 
@@ -399,7 +399,7 @@ When studying the effects of the pandemic hockey restrictions on OHL hockey play
 
 # Acknowledgments
 
-Thank you to our external advisors, professors, and universities, we could not have completed this project without them and we sincerely appreciate their help.
+Thank you to our advisors Sam Ventura and Ron Yurko, professors Ben Baumer and Ryne Vankrevelen, and Smith College and Elon University. We could not have completed this project without them and we sincerely appreciate their help.
 
 \pagebreak
 

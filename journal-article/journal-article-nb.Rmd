@@ -192,10 +192,11 @@ PPG is right skewed and bounded between 0 and some positive number, so we believ
 
 \vspace{-.5cm}
 
-- \(\text{Player Performance} \sim \text{Gamma}(\alpha, \lambda)\)
+- \(\text{Let X} = \text{Treatment}, \text{Forward}, \text{Previous Performance}, \text{Games Played Post-COVID}, \text{Age}\)
+- \(\text{Player Performance | x} \sim \text{Gamma}(\alpha, \lambda)\)
 - \(\text{for the }i^{th} \text{player, } i= 1,..., 219,\)
-\[E[\text{Player Performance}_{i}] =  e^{\beta_0} \text{Treatment}^{\beta_1}  \text{Forward}^{\beta_2} \text{Previous Performance}^{\beta_3}\]
-\[\text{Games Played Post-COVID}^{\beta_3} \text{Age}^{\beta_5}\]
+\[ln(E[\text{Player Performance}_i | x]) =  \beta_0 + \beta_1 \cdot \text{Treatment} + \beta_2 \cdot \text{Forward} + \beta_3 \cdot \text{Previous Performance}\]
+\[ \beta_4 \cdot \text{Games Played Post-COVID} + \beta_5 \cdot \text{Age}\]
 
 ### Mixed-effects Model
 

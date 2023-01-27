@@ -93,12 +93,12 @@ even caused players to get worse). Statistical and causal inference
 methods were employed to assess the impact of not playing during the
 COVID season, including Ordinary Least Squares, Gamma, Mixed Effects,
 and matched regression models, as well as a Bayesian Additive Regression
-Model. All models pointed to no significant difference in post-COVID
-performance for treated (played during COVID season) vs control (did not
-play during COVID season) groups. Future research should focus on
-studying other populations, experimenting with alternative variable
-definitions, and studying player development curves to more thoroughly
-assess treatment impact.
+Trees Model. All models pointed to no significant difference in
+post-COVID performance for treated (played during COVID season) vs
+control (did not play during COVID season) groups. Future research
+should focus on studying other populations, experimenting with
+alternative variable definitions, and studying player development curves
+to more thoroughly assess treatment impact.
 \end{abstract}
 
 \noindent%
@@ -443,11 +443,13 @@ explanatory variables.
 \begin{itemize}
 \tightlist
 \item
-  \(\text{Player Performance} \sim \text{Gamma}(\alpha, \lambda)\)
+  \(\text{Let X} = \text{Treatment}, \text{Forward}, \text{Previous Performance}, \text{Games Played Post-COVID}, \text{Age}\)
+\item
+  \(\text{Player Performance | x} \sim \text{Gamma}(\alpha, \lambda)\)
 \item
   \(\text{for the }i^{th} \text{player, } i= 1,..., 219,\)
-  \[E[\text{Player Performance}_{i}] =  e^{\beta_0} \text{Treatment}^{\beta_1}  \text{Forward}^{\beta_2} \text{Previous Performance}^{\beta_3}\]
-  \[\text{Games Played Post-COVID}^{\beta_3} \text{Age}^{\beta_5}\]
+  \[ln(E[\text{Player Performance}_i | x]) =  \beta_0 + \beta_1 \cdot \text{Treatment} + \beta_2 \cdot \text{Forward} + \beta_3 \cdot \text{Previous Performance}\]
+  \[ \beta_4 \cdot \text{Games Played Post-COVID} + \beta_5 \cdot \text{Age}\]
 \end{itemize}
 
 \hypertarget{mixed-effects-model}{%

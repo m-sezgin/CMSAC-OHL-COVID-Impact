@@ -445,10 +445,10 @@ explanatory variables.
 \item
   \(\text{Let X} = \text{Treatment}, \text{Forward}, \text{Previous Performance}, \text{Games Played Post-COVID}, \text{Age}\)
 \item
-  \(\text{Player Performance | x} \sim \text{Gamma}(\alpha, \lambda)\)
+  \(\text{Player Performance} \mid x \sim \text{Gamma}(\alpha, \lambda)\)
 \item
   \(\text{for the }i^{th} \text{player, } i= 1,..., 219,\)
-  \[ln(E[\text{Player Performance}_i | x]) =  \beta_0 + \beta_1 \cdot \text{Treatment} + \beta_2 \cdot \text{Forward} + \beta_3 \cdot \text{Previous Performance}\]
+  \[ln(E[\text{Player Performance}_i \mid x]) =  \beta_0 + \beta_1 \cdot \text{Treatment} + \beta_2 \cdot \text{Forward} + \beta_3 \cdot \text{Previous Performance}\]
   \[ \beta_4 \cdot \text{Games Played Post-COVID} + \beta_5 \cdot \text{Age}\]
 \end{itemize}
 
